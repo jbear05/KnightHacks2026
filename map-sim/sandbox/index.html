@@ -4,45 +4,111 @@
 <meta charset="utf-8">
 <title>Route Sandbox</title>
 <!--
-  Try the pathfinding and the SPOT animation by hand. No backend or frontend project needed.
+  Try the pathfinding, the SPOT animation, mission replays and the what-if scenarios.
+  No backend or frontend project needed.
     npm run sandbox      (bundles src/sim/index.ts and serves the folder)
     open the "Sandbox" URL it prints (http://127.0.0.1:5173/sandbox/ by default)
 -->
 <style>
-  :root { --bg:#0f1115; --panel:#181b22; --ink:#e8eaf0; --mut:#9aa3b2; --acc:#ffd23f; }
+  :root { --bg:#0f1115; --panel:#181b22; --ink:#e8eaf0; --mut:#9aa3b2; --acc:#ffd23f;
+          --crit:#ff5c5c; --warn:#ffb020; --info:#7aa2ff; --sim:#c77dff; }
   body { margin:0; font:14px/1.4 system-ui,sans-serif; background:var(--bg); color:var(--ink); }
   header { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; padding:10px 14px; background:var(--panel); }
   header b { color:var(--acc); }
+  header .grp { display:flex; gap:8px; align-items:center; padding:4px 10px; border:1px solid #2c3240; border-radius:8px; }
   button, select { padding:6px 10px; background:#262b36; color:var(--ink); border:1px solid #3a4150; border-radius:6px; cursor:pointer; }
   button:hover { border-color:var(--acc); }
+  button.primary { background:#3a3210; border-color:var(--acc); color:var(--acc); font-weight:600; }
   main { display:flex; gap:14px; padding:14px; align-items:flex-start; flex-wrap:wrap; }
   canvas { max-width:100%; border-radius:6px; cursor:crosshair; }
-  #info { min-width:260px; max-width:320px; background:var(--panel); padding:12px 14px; border-radius:8px; }
-  #info h3 { margin:0 0 8px; font-size:14px; color:var(--acc); }
+  #info { min-width:280px; max-width:340px; flex:1; background:var(--panel); padding:12px 14px; border-radius:8px; }
+  #info h3 { margin:0 0 8px; font-size:14px; color:var(--acc); display:flex; justify-content:space-between; }
   #info .row { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid #262b36; padding:4px 0; }
   #info .row span:first-child { color:var(--mut); }
-  #log { margin-top:10px; font:12px ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; max-height:260px; overflow:auto; }
+  #info .row span:last-child { text-align:right; }
+  #log { margin-top:10px; font:12px ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; max-height:160px; overflow:auto; }
   .ok { color:#5fd38d } .bad { color:#ff6b6b }
   label { color:var(--mut); }
+  #alerts { max-height:340px; overflow:auto; display:flex; flex-direction:column; gap:6px; margin-bottom:6px; }
+  .alert { border-left:4px solid var(--info); background:#1f232c; padding:6px 8px; border-radius:4px; cursor:pointer; }
+  .alert.warning { border-color:var(--warn); } .alert.critical { border-color:var(--crit); }
+  .alert .t { font-weight:600; } .alert .d { color:var(--mut); font-size:12px; margin-top:2px; }
+  .alert .meta { display:flex; gap:6px; align-items:center; font-size:11px; color:var(--mut); margin-bottom:2px; }
+  .tag { font-size:10px; font-weight:700; letter-spacing:.04em; padding:1px 5px; border-radius:3px; background:#2c3240; color:var(--mut); }
+  .tag.sim { background:#3a2350; color:var(--sim); }
+  .counts .tag { margin-left:4px; }
+  .legend { font-size:11px; color:var(--mut); margin-bottom:12px; }
+  .empty { color:var(--mut); font-size:12px; }
+  #mapwrap { position:relative; max-width:100%; flex:0 1 auto; }
+  #mapwrap canvas { display:block; width:100%; }
+  /* component card, anchored next to the selected stop */
+  .card { position:absolute; z-index:5; width:250px; max-height:240px; display:flex; flex-direction:column;
+          background:rgba(24,27,34,0.97); border:1px solid #3a4150; border-radius:10px;
+          box-shadow:0 10px 30px rgba(0,0,0,.55); font-size:13px; }
+  .card[hidden] { display:none; }
+  .card.small { font-size:11.5px; } .card.small .crow ul, .card.small .why { font-size:10.5px; }
+  .card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:8px 10px 6px; border-bottom:1px solid #2c3240; }
+  .card-title { font-weight:700; color:var(--acc); } .card-sub { color:var(--mut); font-size:11px; }
+  .card-head button { padding:0 8px; font-size:18px; line-height:24px; }
+  #cBody { overflow:auto; padding:2px 10px; }
+  .card-foot { padding:5px 10px 7px; border-top:1px solid #2c3240; font-size:10.5px; color:var(--mut); }
+  .crow { padding:6px 0; border-bottom:1px solid #262b36; cursor:pointer; }
+  .crow:last-child { border-bottom:0; }
+  .crow .top { display:flex; justify-content:space-between; gap:6px; align-items:baseline; }
+  .crow .id { font-weight:700; } .crow .ty { color:var(--mut); font-size:11px; }
+  .crow .life { white-space:nowrap; font-weight:600; }
+  .crow .chev { color:var(--mut); font-size:10px; display:inline-block; width:10px; }
+  .crow .more { display:none; } .crow.open .more { display:block; }
+  .crow ul { margin:4px 0 0; padding-left:16px; color:var(--mut); font-size:11.5px; }
+  .crow .stats { color:var(--mut); font-size:10.5px; margin-top:3px; }
+  .crow .why { color:var(--mut); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .crow.open .why { display:none; }
+  .bar { height:6px; background:#2c3240; border-radius:4px; margin:5px 0 2px; overflow:hidden; }
+  .bar span { display:block; height:100%; border-radius:4px; }
 </style>
 </head>
 <body>
 <header>
-  <span><b>Route sandbox</b>: click a stop, then another. Click empty floor to route to any point.</span>
-  <label><input type="checkbox" id="showGrid"> show walkable grid</label>
+  <span><b>Route sandbox</b>: click a stop to see its components.</span>
+  <span class="grp">
+    <label>Mission <select id="mission"></select></label>
+    <button id="replay" class="primary">▶ Replay mission</button>
+  </span>
+  <span class="grp" title="What-if scenarios: not in the data, shown as SIMULATED">
+    <label><input type="checkbox" id="heat"> Heat wave</label>
+    <input type="range" id="heatC" min="4" max="24" step="1" value="16"><span id="heatV">+16°C</span>
+    <label><input type="checkbox" id="obstacle"> Obstacle at the dock</label>
+  </span>
   <label>Walk speed <select id="speed"><option value="35">slow</option><option value="80" selected>normal</option><option value="220">fast</option></select></label>
-  <label><input type="checkbox" id="showRoutes" checked> show route lines</label>
+  <label><input type="checkbox" id="showGrid"> walkable grid</label>
+  <label><input type="checkbox" id="showRoutes" checked> route lines</label>
+  <label><input type="checkbox" id="showHealth" checked> component health</label>
+  <label title="Off: clicking a stop shows its components. On: click two points to route between them."><input type="checkbox" id="clickRoute"> click to route</label>
   <button id="rand">10 random routes</button>
-  <button id="tour">Replay M001 (with results)</button>
   <button id="clear">Clear</button>
 </header>
 <main>
-  <canvas id="cv"></canvas>
+  <div id="mapwrap">
+    <canvas id="cv"></canvas>
+    <div id="card" class="card" hidden role="dialog" aria-label="Components at this stop">
+      <div class="card-head">
+        <div><div class="card-title" id="cTitle"></div><div class="card-sub" id="cSub"></div></div>
+        <button id="cClose" title="Close (Esc)">×</button>
+      </div>
+      <div id="cBody"></div>
+    </div>
+  </div>
   <div id="info">
     <h3>SPOT</h3>
     <div class="row"><span>Status</span><span id="iMode">idle</span></div>
     <div class="row"><span>Heading to</span><span id="iTarget">–</span></div>
-    <h3 style="margin-top:12px">Last route</h3>
+    <div class="row"><span>Step</span><span id="iStep">–</span></div>
+    <div class="row"><span>Battery</span><span id="iBat">–</span></div>
+    <div class="row" id="rowAir" hidden><span>Air temp there <span class="tag sim">SIM</span></span><span id="iAir">–</span></div>
+    <h3 style="margin-top:14px">Alerts <span class="counts" id="aCount"></span></h3>
+    <div class="legend"><span class="tag">DATA</span> from the kit data · <span class="tag sim">SIMULATED</span> what-if scenario only</div>
+    <div id="alerts"><div class="empty">Replay a mission to see alerts.</div></div>
+    <h3 style="margin-top:14px">Last route</h3>
     <div class="row"><span>From</span><span id="iFrom">–</span></div>
     <div class="row"><span>To</span><span id="iTo">–</span></div>
     <div class="row"><span>Length</span><span id="iLen">–</span></div>
@@ -53,22 +119,34 @@
   </div>
 </main>
 <script type="module">
-import { NavGrid, pointAlong, polylineLength, SpotAnimator, drawSpot, headingAlong } from './sim.js';
+import {
+  NavGrid, pointAlong, polylineLength, SpotAnimator, drawSpot, headingAlong,
+  missionActions, ambientC, heatWaveExtraC, obstacleOnApproach, distToRect, dockObstacleAlert, LIMITS,
+  componentHealth, componentsAt, remainingWithHeat, formatLife, LIFE, MissionRun,
+} from './sim.js';
 
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const S = 2;                       // canvas is drawn at 2x for crispness
 const BODY = 30;                   // SPOT body length, in floor-plan px
-const [map, img] = await Promise.all([
+const SEE_PX = 25;                 // SPOT notices an obstacle this close (floor-plan px)
+const [map, img, missions] = await Promise.all([
   fetch('../data/map.json').then(r => r.json()),
   new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = '../public/floorplan.png'; }),
+  fetch('../data/missions.json').then(r => r.json()),
 ]);
 cv.width = map.width * S; cv.height = map.height * S;
-cv.style.width = map.width * 1.15 + 'px';
+document.getElementById('mapwrap').style.width = map.width * 1.15 + 'px';
 const nav = new NavGrid(map);
 const byId = Object.fromEntries(map.stops.map(s => [s.id, s]));
+const DOCK = byId.WP15;
+const health = componentHealth(missions);   // score from all 27 missions; life left is simulated
+let selected = null;                         // stop whose card is open
+let openRows = new Set();                    // expanded component rows in the card
+let cardBox = null;                          // where the card sits, in canvas px (for the connector line)
 const floorOf = x => (x >= map.floors['2'].x0 ? 2 : 1);
 const COLORS = ['#ffd23f','#ff5d8f','#4cc9f0','#7bf1a8','#ff9f1c','#c77dff','#f72585','#90e0ef','#ff6b6b','#b5e48c'];
 const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---------------------------------------------------------------- state
 let routes = [];                    // drawn route lines: [{route, color}]
@@ -78,31 +156,177 @@ let mode = 'idle', target = null;
 const animator = new SpotAnimator(-Math.PI / 2);
 animator.reset(spot.x * S, spot.y * S);
 
+// mission replay
+let run = null;                     // MissionRun: current step, mission progress, alert feed (src/sim/replay.ts)
+let banner = null, highlight = null;
+const currentStep = () => run?.step ?? null;
+let obstacle = null, obstacleKnown = false, navBlocked = null;
+const heatOn = () => ($('heat').checked ? +$('heatC').value : 0);
+const navNow = () => (obstacleKnown ? (navBlocked ??= nav.withBlocked([obstacle])) : nav);
+
 /**
- * The animation is a queue of segments, played one after another:
- *   {kind:'walk',   pts, len, upTo}   walk a polyline (upTo < len = stop short)
+ * The animation is a queue of steps, played one after another. High-level steps
+ * are expanded when they start, so routes use what SPOT knows at that moment:
+ *   {kind:'action', i}                one row of actions.csv: heat check, go, inspect, alerts
+ *   {kind:'goto',   to, stopShort}    plan a route now and queue its walk/stairs
+ *   {kind:'call',   fn}               run code (raise alerts, log)
+ *   {kind:'walk',   pts, len, upTo, watch?}  walk a polyline; `watch` = obstacle to notice
  *   {kind:'stairs', from, to, dur}    fade out at one end, fade in at the other
- *   {kind:'pause',  mode, dur, msg}   stand still: 'inspect' or 'fail'
+ *   {kind:'pause',  mode, dur}        stand still: 'inspect' or 'fail'
  */
 let queue = [], seg = null, segT = 0, segD = 0;
+
+function nextSeg() {
+  while (!seg && queue.length) {
+    const s = queue.shift();
+    if (s.kind === 'call') s.fn();
+    else if (s.kind === 'action') startAction(s);
+    else if (s.kind === 'goto') startGoto(s);
+    else { seg = s; segT = 0; segD = 0; }
+  }
+}
 
 function enqueueRoute(from, to, { color, stopShort = 1, label } = {}) {
   const t0 = performance.now();
   let route;
   try { route = nav.route(from, to); }
-  catch (e) { log(`✖ ${name(from)} → ${name(to)}: ${e.message}`, 'bad'); return null; }
+  catch (e) { log(`✖ ${name(from)} → ${name(to)}: ${e.message}`, 'bad'); return; }
   showRouteInfo(from, to, route, performance.now() - t0);
   routes.push({ route, color: color || COLORS[routes.length % COLORS.length] });
-  route.legs.forEach((pts, i) => {
-    if (i > 0) queue.push({ kind: 'stairs', from: route.legs[i - 1].at(-1), to: pts[0], dur: 0.9 });
-    const len = polylineLength(pts);
-    const last = i === route.legs.length - 1;
-    queue.push({ kind: 'walk', pts, len, upTo: last ? len * stopShort : len, target: label || name(to) });
-  });
-  // where SPOT will be after this route
-  const lastLeg = route.legs.at(-1);
-  return stopShort < 1 ? pointAlong(lastLeg, polylineLength(lastLeg) * stopShort) : { ...to };
+  queue.push(...walkSegs(route, stopShort, label || name(to), to));
 }
+
+function walkSegs(route, stopShort, label, goal, watch = null) {
+  const out = [];
+  route.legs.forEach((pts, i) => {
+    if (i > 0) out.push({ kind: 'stairs', from: route.legs[i - 1].at(-1), to: pts[0], dur: 0.9 });
+    const len = polylineLength(pts), last = i === route.legs.length - 1;
+    out.push({ kind: 'walk', pts, len, upTo: last ? len * stopShort : len, target: label, goal, watch: last ? watch : null });
+  });
+  return out;
+}
+
+// ---------------------------------------------------------------- mission replay
+function replayMission(id) {
+  resetAll();
+  run = new MissionRun(missions, health, byId, DOCK, id);
+  const acts = run.actions;
+  spot = { ...byId.WP01 }; animator.reset(spot.x * S, spot.y * S, -Math.PI / 2);   // contract: missions start at WP01
+  const sim = [heatOn() && `heat wave +${heatOn()}°C`, $('obstacle').checked && 'obstacle at the dock'].filter(Boolean);
+  log(`▶ ${id} (${acts[0].scenario.toLowerCase()}, ${acts.length} steps)${sim.length ? '; simulating ' + sim.join(' + ') : ''}`);
+  acts.forEach((_, i) => queue.push({ kind: 'action', i }));
+  queue.push({ kind: 'call', fn: () => {
+    run.finish();                    // progress stays at 1: heat labels and the card keep the end-of-mission heat
+    const c = run.feed.count('critical'), w = run.feed.count('warning');
+    log(`■ ${id} finished: ${c} critical, ${w} warnings`, c ? 'bad' : 'ok');
+    renderComponents(true);
+  } });
+}
+
+function startAction({ i }) {
+  const heat = heatOn();             // read once, so this step's checks and alerts agree
+  const { step, skip, raised } = run.beginAction(i, heat);
+  const act = step.act, st = byId[act.location_id];
+  showRaised(raised);
+  renderComponents();
+  if (skip) {
+    log(`⤼ ${act.action_id} skipped: ${st.name} too hot`, 'bad');
+    queue.unshift({ kind: 'pause', mode: 'fail', dur: 1.2 });
+    return;
+  }
+  const failedNav = act.action_type === 'NAVIGATION' && act.status === 'FAILED';
+  const dur = 0.6 + (act.duration_sec ?? 30) / 60;
+  queue.unshift(
+    { kind: 'goto', to: st, stopShort: failedNav ? 0.7 : 1, color: COLORS[i % COLORS.length], actionId: act.action_id },
+    { kind: 'pause', mode: act.status === 'FAILED' ? 'fail' : 'inspect', dur: act.status === 'FAILED' ? Math.max(1.6, dur) : dur, actionId: act.action_id },
+    { kind: 'call', actionId: act.action_id, fn: () => {
+      showRaised(run.completeAction(i, heat));
+      selectStop(st);
+      log(`${act.status === 'FAILED' ? '⚠' : '•'} ${act.action_id} ${st.id} ${act.action_type.toLowerCase().replace(/_/g, ' ')}: ${act.status}`,
+          act.status === 'FAILED' ? 'bad' : '');
+    } },
+  );
+}
+
+function startGoto({ to, stopShort, color }) {
+  const from = { x: spot.x, y: spot.y, floor: spot.floor ?? floorOf(spot.x) };
+  if (from.floor === to.floor && Math.hypot(from.x - to.x, from.y - to.y) < 1) return;
+  let route;
+  try { route = navNow().route(from, to); }
+  catch (e) {
+    const actionId = currentStep()?.act.action_id ?? null;
+    raise({ id: `unreachable-${actionId}`, level: 'critical', simulated: obstacleKnown, title: `Can't reach ${to.name}`,
+            detail: e.message, location_id: to.id, action_id: actionId });
+    dropAction(actionId);
+    return;
+  }
+  routes.push({ route, color });
+  showRouteInfo(from, to, route, 0);
+  let watch = null;
+  if ($('obstacle').checked && to.id === DOCK.id && !obstacle && stopShort === 1) {
+    obstacle = obstacleOnApproach(route.legs.at(-1));
+    navBlocked = null;
+    log('▣ (simulated) something was left in front of the Inspection Dock');
+    watch = obstacle;
+  }
+  queue.unshift(...walkSegs(route, stopShort, `${to.id} ${to.name}`, to, watch));
+}
+
+/** SPOT can't do this action (e.g. dock blocked): drop its inspection and data alerts. */
+function dropAction(actionId) {
+  if (actionId) queue = queue.filter(s => s.actionId !== actionId);
+}
+
+/** Called the frame SPOT gets close enough to see the obstacle. */
+function seeObstacle(walk) {
+  obstacleKnown = true; navBlocked = null;
+  const here = { x: spot.x, y: spot.y, floor: walk.pts[0].floor };
+  let detour = null;
+  try { detour = navNow().route(here, walk.goal); } catch { /* no way in */ }
+  raise(dockObstacleAlert(DOCK, !!detour));
+  seg = null;
+  const next = [{ kind: 'pause', mode: 'fail', dur: 1.4 }];
+  if (detour) {
+    routes.push({ route: detour, color: '#ff9f1c' });
+    next.push(...walkSegs(detour, 1, walk.target, walk.goal));
+  } else {
+    dropAction(currentStep()?.act.action_id);
+  }
+  queue.unshift(...next);
+}
+
+// ---------------------------------------------------------------- alerts
+/** Alerts raised outside a step's own checks (obstacle, unreachable stop). */
+function raise(a) {
+  if (run) showRaised([run.raise(a)]);
+}
+
+/** New or escalated feed entries: refresh the list, banner the most serious one. */
+function showRaised(entries) {
+  const shown = entries.filter(Boolean);
+  if (!shown.length) return;
+  renderAlerts();
+  const top = shown.filter(a => a.level !== 'info').sort((a, b) => (a.level === 'critical' ? -1 : 0) - (b.level === 'critical' ? -1 : 0))[0];
+  if (top) banner = { a: top, t0: performance.now() };
+}
+
+function renderAlerts() {
+  const alerts = run ? run.feed.list : [];
+  const n = lvl => (run ? run.feed.count(lvl) : 0);
+  $('aCount').innerHTML = alerts.length
+    ? `<span><span class="tag" style="color:var(--crit)">${n('critical')} critical</span><span class="tag" style="color:var(--warn)">${n('warning')} warn</span><span class="tag">${n('info')} info</span></span>` : '';
+  $('alerts').innerHTML = alerts.length ? alerts.map((a, k) => `
+    <div class="alert ${a.level}" data-k="${k}">
+      <div class="meta"><span class="tag ${a.simulated ? 'sim' : ''}">${a.simulated ? 'SIMULATED' : 'DATA'}</span>
+        <span>${esc(a.level)}</span><span>${esc(a.at)}</span><span>${esc(a.location_id ?? '')}</span></div>
+      <div class="t">${esc(a.title)}</div><div class="d">${esc(a.detail)}</div>
+    </div>`).join('') : '<div class="empty">Replay a mission to see alerts.</div>';
+}
+$('alerts').addEventListener('click', e => {
+  const el = e.target.closest('.alert'); if (!el) return;
+  const a = run?.feed.list[+el.dataset.k];
+  if (a?.location_id && byId[a.location_id]) highlight = { stop: byId[a.location_id], until: performance.now() + 2500 };
+});
 
 // ---------------------------------------------------------------- per-frame update
 let lastNow = performance.now();
@@ -110,7 +334,7 @@ function frame(now) {
   const dt = Math.min(0.1, (now - lastNow) / 1000); lastNow = now;
   let alpha = 1, faceHeading;
 
-  if (!seg && queue.length) { seg = queue.shift(); segT = 0; segD = 0; }
+  nextSeg();
   if (seg) {
     segT += dt;
     if (seg.kind === 'walk') {
@@ -118,7 +342,8 @@ function frame(now) {
       segD = Math.min(seg.upTo, segD + (+$('speed').value) * dt);
       spot = pointAlong(seg.pts, segD);
       faceHeading = headingAlong(seg.pts, segD + 2);
-      if (segD >= seg.upTo) seg = null;
+      if (seg.watch && !obstacleKnown && distToRect(spot.x, spot.y, seg.watch) <= SEE_PX) seeObstacle(seg);
+      else if (segD >= seg.upTo) seg = null;
     } else if (seg.kind === 'stairs') {
       mode = 'walk'; target = 'stairs';
       const half = seg.dur / 2;
@@ -135,18 +360,37 @@ function frame(now) {
   } else { mode = 'idle'; }
 
   animator.update(spot.x * S, spot.y * S, dt, BODY * S, faceHeading);
-  draw(alpha, now / 1000);
-  $('iMode').textContent = { idle: 'idle', walk: 'walking', inspect: 'inspecting', fail: '⚠ failed' }[mode];
-  $('iTarget').textContent = mode === 'idle' ? '–' : (target || '–');
+  draw(alpha, now);
+  updatePanel();
   requestAnimationFrame(frame);
 }
 
-function draw(alpha, t) {
+function updatePanel() {
+  $('iMode').textContent = { idle: 'idle', walk: 'walking', inspect: 'inspecting', fail: '⚠ stopped' }[mode];
+  $('iTarget').textContent = mode === 'idle' ? '–' : (target || '–');
+  const step = currentStep();
+  if (step) {
+    const a = step.act;
+    $('iStep').textContent = `${step.i + 1} of ${step.n}: ${a.action_type.toLowerCase().replace(/_/g, ' ')}`;
+    $('iBat').textContent = a.battery_pct == null ? '–' : `${a.battery_pct}%`;
+    $('iBat').style.color = a.battery_pct != null && a.battery_pct <= LIMITS.lowBatteryPct ? 'var(--warn)' : '';
+  } else { $('iStep').textContent = '–'; $('iBat').textContent = '–'; $('iBat').style.color = ''; }
+  const heat = heatOn();
+  $('rowAir').hidden = !heat || !step;
+  if (heat && step) {
+    const c = ambientC(byId[step.act.location_id], step.prog, heat);
+    $('iAir').textContent = `${c.toFixed(1)}°C`;
+    $('iAir').style.color = c > LIMITS.spotMaxC ? 'var(--crit)' : c > LIMITS.chargerMaxC ? 'var(--warn)' : '';
+  }
+}
+
+function draw(alpha, now) {
+  const t = now / 1000;
   ctx.drawImage(img, 0, 0, cv.width, cv.height);
   if ($('showGrid').checked) {
+    const g = obstacleKnown ? navBlocked ?? navNow() : nav, c = map.grid.cell * S;
     ctx.fillStyle = 'rgba(0,255,120,0.22)';
-    const c = map.grid.cell * S;
-    map.grid.rows.forEach((row, r) => { for (let k = 0; k < row.length; k++) if (row[k] === '#') ctx.fillRect(k*c, r*c, c, c); });
+    for (let r = 0; r < g.rows; r++) for (let k = 0; k < g.cols; k++) if (g.isWalkable(k, r)) ctx.fillRect(k*c, r*c, c, c);
   }
   for (const k of ['F1','F2']) {
     const p = map.stairs[k]; ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3;
@@ -159,14 +403,216 @@ function draw(alpha, t) {
       ctx.setLineDash([]);
     }
   }
+  if ($('showHealth').checked) drawHealthRings();
+  if (selected && cardBox) drawConnector();
+  if (heatOn()) drawHeat(run ? run.progress : 0);
+  if (obstacle) drawObstacle(obstacle);
   if (picked) {
     ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(picked.x*S, picked.y*S, 14, 0, 7); ctx.stroke();
+  }
+  if (highlight && now < highlight.until) {
+    const r = 22 + 10 * Math.sin(t * 8);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(highlight.stop.x*S, highlight.stop.y*S, r, 0, 7); ctx.stroke();
   }
   ctx.globalAlpha = alpha;
   drawSpot(ctx, { x: spot.x*S, y: spot.y*S, heading: animator.heading, gait: animator.gait,
                   walking: animator.walking, mode, size: BODY*S, t });
   ctx.globalAlpha = 1;
+  if (banner && now - banner.t0 < 4500) drawBanner(banner.a, now - banner.t0);
+}
+
+/** Simulated air temperature next to every stop, coloured by SPOT's limits. */
+function drawHeat(prog) {
+  ctx.font = 'bold 20px system-ui,sans-serif'; ctx.textBaseline = 'middle';
+  for (const s of map.stops) {
+    const c = ambientC(s, prog, heatOn());
+    const col = c > LIMITS.spotMaxC ? '#ff4d4d' : c > LIMITS.chargerMaxC ? '#ff9f1c' : '#ffd23f';
+    const txt = `${c.toFixed(0)}°C`, w = ctx.measureText(txt).width + 14;
+    const x = s.x*S + 18, y = s.y*S - 46;
+    ctx.fillStyle = 'rgba(15,17,21,0.82)'; roundRect(x, y - 14, w, 28, 6); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = col; ctx.fillText(txt, x + 7, y + 1);
+  }
+}
+
+function drawObstacle(o) {
+  const x = o.x0*S, y = o.y0*S, w = (o.x1 - o.x0)*S, h = (o.y1 - o.y0)*S;
+  ctx.save();
+  ctx.fillStyle = '#b5651d'; ctx.fillRect(x, y, w, h);
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,210,63,0.9)'; ctx.lineWidth = 6;
+  for (let k = -h; k < w; k += 16) { ctx.beginPath(); ctx.moveTo(x + k, y + h); ctx.lineTo(x + k + h, y); ctx.stroke(); }
+  ctx.restore();
+  ctx.strokeStyle = obstacleKnown ? '#ff5c5c' : '#111'; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
+  ctx.font = 'bold 18px system-ui,sans-serif'; ctx.fillStyle = '#fff'; ctx.textBaseline = 'bottom';
+  ctx.fillText('obstacle', x, y - 4);
+}
+
+function drawBanner(a, age) {
+  const col = a.level === 'critical' ? '#ff5c5c' : '#ffb020';
+  const fade = Math.min(1, (4500 - age) / 600);
+  ctx.save(); ctx.globalAlpha = fade;
+  const x = 24, y = 24, w = cv.width - 48, h = 92;
+  ctx.fillStyle = 'rgba(15,17,21,0.92)'; roundRect(x, y, w, h, 12); ctx.fill();
+  ctx.fillStyle = col; roundRect(x, y, 14, h, 6); ctx.fill();
+  ctx.textBaseline = 'top';
+  ctx.font = 'bold 30px system-ui,sans-serif'; ctx.fillStyle = col;
+  const head = `${a.level === 'critical' ? '⛔' : '⚠'} ${a.title}`;
+  ctx.fillText(head, x + 32, y + 12);
+  const tag = a.simulated ? 'SIMULATED' : 'DATA', hx = x + 44 + ctx.measureText(head).width;
+  ctx.font = 'bold 18px system-ui,sans-serif';
+  ctx.fillStyle = a.simulated ? '#3a2350' : '#2c3240'; roundRect(hx, y + 16, ctx.measureText(tag).width + 14, 26, 4); ctx.fill();
+  ctx.fillStyle = a.simulated ? '#c77dff' : '#9aa3b2'; ctx.fillText(tag, hx + 7, y + 20);
+  ctx.font = '22px system-ui,sans-serif'; ctx.fillStyle = '#e8eaf0';
+  ctx.fillText(a.detail, x + 32, y + 54, w - 48);
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+// ---------------------------------------------------------------- component health
+const healthColor = score => (score < 40 ? '#ff5c5c' : score < 70 ? '#ffb020' : '#5fd38d');
+const currentExtraC = () => (heatOn() ? heatWaveExtraC(run ? run.progress : 0, heatOn()) : 0);
+
+/** Ring round each stop, coloured by its weakest component. */
+function drawHealthRings() {
+  for (const s of map.stops) {
+    const at = componentsAt(health, s.id);
+    if (!at.length) continue;
+    const col = healthColor(at[0].score), x = s.x*S, y = s.y*S - 22;
+    ctx.fillStyle = col + '33'; ctx.beginPath(); ctx.arc(x, y, 44, 0, 7); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = selected === s ? 12 : 8;
+    ctx.beginPath(); ctx.arc(x, y, 44, 0, 7); ctx.stroke();
+  }
+}
+
+function selectStop(s) {
+  if (s !== selected) openRows = new Set();
+  selected = s;
+  renderComponents();
+}
+
+function closeCard() { selected = null; cardBox = null; $('card').hidden = true; }
+
+/** @param keepPlace re-render in place (e.g. a row was expanded) instead of finding a new spot */
+function renderComponents(keepPlace = false) {
+  const card = $('card');
+  if (!selected || $('clickRoute').checked) { card.hidden = true; cardBox = null; return; }
+  const at = componentsAt(health, selected.id), extra = currentExtraC();
+  $('cTitle').textContent = `${selected.id} ${selected.name}`;
+  $('cSub').innerHTML = at.length
+    ? `${at.length} component${at.length > 1 ? 's' : ''} · life left <span class="tag sim" title="Health is from the data; life left is simulated from an assumed design life and age">SIM</span>${extra > 0 ? ` · heat +${extra.toFixed(0)}°C` : ''}`
+    : 'no components based here';
+  let html = at.map(h => {
+    const months = extra > 0 ? remainingWithHeat(h, extra) : h.remainingMonths;
+    const col = months <= LIFE.criticalMonths ? 'var(--crit)' : months <= LIFE.warnMonths ? 'var(--warn)' : 'var(--ink)';
+    const open = openRows.has(h.asset_id);
+    return `<div class="crow${open ? ' open' : ''}" data-id="${esc(h.asset_id)}">
+      <div class="top"><span><span class="chev">${open ? '▾' : '▸'}</span><span class="id">${esc(h.asset_id)}</span> <span class="ty">${esc(h.type)}</span></span>
+        <span class="life" style="color:${col}">≈ ${esc(formatLife(months))}</span></div>
+      <div class="bar" title="health ${h.score}/100"><span style="width:${h.score}%;background:${healthColor(h.score)}"></span></div>
+      <div class="why">${h.reasons.length ? esc(h.reasons[0].text) : 'nothing flagged in the data'}</div>
+      <div class="more">
+        <div>Health <b>${h.score}</b>/100${extra > 0 ? ` · ${esc(formatLife(h.remainingMonths))} without the heat wave` : ''}</div>
+        ${h.reasons.length ? `<ul>${h.reasons.map(r => `<li>−${r.points}: ${esc(r.text)}</li>`).join('')}</ul>` : '<ul><li>Nothing flagged in the data</li></ul>'}
+        <div class="stats">${h.inspections} inspections · ${h.failed} failed · ${h.questionable} questionable · design life ${h.designYears} yrs (assumed)</div>
+      </div>
+    </div>`;
+  }).join('');
+  const visiting = [...health.values()].filter(h => h.stops[0] !== selected.id && h.stops.includes(selected.id));
+  if (visiting.length) html += `<div class="crow" style="cursor:default"><div class="ty">Also checked here now and then: ${
+    visiting.map(h => `${esc(h.asset_id)} (based at ${esc(h.stops[0])})`).join(', ')}</div></div>`;
+  $('cBody').innerHTML = html;
+  const wasOpen = !card.hidden;
+  card.hidden = false;
+  if (keepPlace && wasOpen) syncCardBox(); else placeCard();
+}
+
+/** Keep the connector line in step with where the card actually is. */
+function syncCardBox() {
+  const card = $('card'), k = cv.getBoundingClientRect().width / map.width, toCanvas = S / k;
+  const x0 = card.offsetLeft, y0 = card.offsetTop;
+  cardBox = { x0: x0 * toCanvas, y0: y0 * toCanvas, x1: (x0 + card.offsetWidth) * toCanvas, y1: (y0 + card.offsetHeight) * toCanvas };
+}
+
+/**
+ * Put the card next to the selected stop: the closest spot that covers the fewest
+ * other stops, so they stay clickable. Never covers the selected pin itself, and
+ * stays inside the map.
+ */
+function placeCard() {
+  const card = $('card');
+  if (!selected || card.hidden) { cardBox = null; return; }
+  const k = cv.getBoundingClientRect().width / map.width;          // floor-plan px -> CSS px
+  const W = map.width * k, H = map.height * k;
+  // size with the map: about a fifth of its width, 180-260 px; smaller text on small maps
+  card.style.width = `${Math.round(Math.min(260, Math.max(180, W * 0.2)))}px`;
+  card.classList.toggle('small', W < 1000);
+  card.style.maxHeight = '';                                        // measure at full size first
+  const w = card.offsetWidth, natural = card.offsetHeight;
+  const ax = selected.x * k, ay = (selected.y - 14) * k;           // middle of the pin head
+  const pinBox = s => ({ x0: (s.x - 20) * k, x1: (s.x + 20) * k, y0: (s.y - 40) * k, y1: (s.y + 12) * k });
+  const hit = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  const others = map.stops.filter(s => s !== selected).map(pinBox), own = pinBox(selected);
+  const pad = 8, near = { x0: own.x0 - pad, x1: own.x1 + pad, y0: own.y0 - pad, y1: own.y1 + pad };
+
+  // every position (12 px grid) near the pin that doesn't cover it; fewest other stops covered, then closest
+  const search = h => {
+    let best = null, bestCovered = Infinity, bestScore = Infinity;
+    for (let x = Math.max(4, near.x0 - w - 40); x <= Math.min(W - w - 4, near.x1 + 40); x += 12) {
+      // may hang below the map (the page continues there), but not off the top or the sides
+      for (let y = Math.max(4, near.y0 - h - 40); y <= near.y1 + 40; y += 12) {
+        const r = { x0: x, y0: y, x1: x + w, y1: y + h };
+        if (hit(r, near)) continue;
+        const covered = others.filter(o => hit(r, o)).length;
+        const dx = Math.max(r.x0 - ax, 0, ax - r.x1), dy = Math.max(r.y0 - ay, 0, ay - r.y1);
+        const outside = Math.max(0, r.y1 - (H - 4));
+        const score = 1000 * covered + Math.hypot(dx, dy) + (outside ? 150 + outside : 0);
+        if (score < bestScore) { bestScore = score; bestCovered = covered; best = r; }
+      }
+    }
+    return { best, covered: bestCovered };
+  };
+  // full height first; if that has to cover another stop, try a shorter (scrolling) card
+  let pick = search(natural);
+  for (const h of [200, 170, 140, 115]) {
+    if (pick.covered === 0 || h >= natural) continue;
+    const tryShort = search(h);
+    if (tryShort.covered < pick.covered) { pick = tryShort; card.style.maxHeight = `${h}px`; }
+  }
+  const best = pick.best ?? { x0: 4, y0: 4, x1: 4 + w, y1: 4 + natural };
+  card.style.left = `${best.x0}px`; card.style.top = `${best.y0}px`;
+  const toCanvas = S / k;
+  cardBox = { x0: best.x0 * toCanvas, y0: best.y0 * toCanvas, x1: best.x1 * toCanvas, y1: best.y1 * toCanvas };
+}
+
+/** Thin line from the selected pin to the nearest edge of its card. */
+function drawConnector() {
+  const at = componentsAt(health, selected.id);
+  const col = at.length ? healthColor(at[0].score) : '#9aa3b2';
+  const px = selected.x * S, py = selected.y * S - 22;
+  const qx = Math.min(Math.max(px, cardBox.x0), cardBox.x1), qy = Math.min(Math.max(py, cardBox.y0), cardBox.y1);
+  ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(qx, qy); ctx.stroke();
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(qx, qy, 6, 0, 7); ctx.fill();
+}
+
+/** The stop under a click: the pin tip, or the pin head and label just above it. */
+function stopAt(x, y) {
+  let best = null, bestD = Infinity;
+  for (const s of map.stops) {
+    const dx = x - s.x, dy = y - s.y;
+    if (Math.abs(dx) > 18 || dy < -36 || dy > 14) continue;
+    const d = Math.hypot(dx, dy + 12);
+    if (d < bestD) { best = s; bestD = d; }
+  }
+  return best;
 }
 
 // ---------------------------------------------------------------- info panel
@@ -175,9 +621,9 @@ function showRouteInfo(from, to, route, ms) {
   $('iFrom').textContent = name(from); $('iTo').textContent = name(to);
   $('iLen').textContent = `${route.lengthPx.toFixed(0)} px`;
   $('iStairs').textContent = route.usesStairs ? 'yes' : 'no';
-  $('iMs').textContent = `${ms.toFixed(2)} ms`;
+  $('iMs').textContent = ms ? `${ms.toFixed(2)} ms` : '–';
   $('iWall').innerHTML = ok ? '<span class="ok">✓ clear</span>' : '<span class="bad">✖ hits wall</span>';
-  log(`${ok ? '✓' : '✖'} ${name(from)} → ${name(to)}  ${route.lengthPx.toFixed(0)}px${route.usesStairs ? ' (stairs)' : ''}`, ok ? 'ok' : 'bad');
+  if (!currentStep()) log(`${ok ? '✓' : '✖'} ${name(from)} → ${name(to)}  ${route.lengthPx.toFixed(0)}px${route.usesStairs ? ' (stairs)' : ''}`, ok ? 'ok' : 'bad');
   return ok;
 }
 function wallCheck(route) {
@@ -190,19 +636,52 @@ function wallCheck(route) {
   }
   return true;
 }
-function log(msg, cls = '') { $('log').innerHTML = `<div class="${cls}">${msg}</div>` + $('log').innerHTML; }
+function log(msg, cls = '') { $('log').innerHTML = `<div class="${cls}">${esc(msg)}</div>` + $('log').innerHTML; }
 const name = p => p.id ? `${p.id} ${p.name}` : `(${Math.round(p.x)}, ${Math.round(p.y)}) F${p.floor}`;
 
 // ---------------------------------------------------------------- controls
-function stopAll() { queue = []; seg = null; }
+function stopAll() { queue = []; seg = null; if (run) run.step = null; }
+function resetAll() {
+  stopAll(); routes = []; picked = null;
+  run = null; banner = null; highlight = null;
+  obstacle = null; obstacleKnown = false; navBlocked = null;
+  renderAlerts();
+}
+
+const ids = [...new Set(missions.actions.map(a => a.mission_id))];
+$('mission').innerHTML = ids.map(id => {
+  const a = missionActions(missions, id);
+  const dock = a.some(x => x.location_id === DOCK.id) ? ' · visits dock' : '';
+  return `<option value="${id}">${id} · ${a[0].scenario.toLowerCase()}${dock}</option>`;
+}).join('');
+$('replay').onclick = () => replayMission($('mission').value);
+$('heatC').oninput = () => { $('heatV').textContent = `+${$('heatC').value}°C`; renderComponents(); };
+$('heat').onchange = renderComponents;
+$('clickRoute').onchange = renderComponents;
+$('cClose').onclick = closeCard;
+$('cBody').addEventListener('click', e => {
+  const row = e.target.closest('.crow[data-id]'); if (!row) return;
+  const id = row.dataset.id;
+  openRows.has(id) ? openRows.delete(id) : openRows.add(id);
+  const card = $('card'); card.style.maxHeight = `${Math.max(card.offsetHeight, 240)}px`;
+  renderComponents(true);
+});
+addEventListener('keydown', e => { if (e.key === 'Escape') closeCard(); });
+addEventListener('resize', placeCard);
 
 cv.addEventListener('click', e => {
   const b = cv.getBoundingClientRect();
   const x = (e.clientX - b.left) * map.width / b.width, y = (e.clientY - b.top) * map.height / b.height;
+  if (!$('clickRoute').checked) {
+    const s = stopAt(x, y);
+    if (s) { selectStop(s); highlight = { stop: s, until: performance.now() + 1200 }; }
+    else closeCard();
+    return;
+  }
   const near = map.stops.find(s => Math.hypot(s.x - x, s.y - y) < 12);
   const pt = near || { x, y, floor: floorOf(x) };
   if (!near && !nav.isWalkable(Math.floor(x / nav.cell), Math.floor(y / nav.cell))) {
-    log(`✖ (${Math.round(x)}, ${Math.round(y)}) is not walkable; tick "show walkable grid" and pick a green cell`, 'bad');
+    log(`✖ (${Math.round(x)}, ${Math.round(y)}) is not walkable; tick "walkable grid" and pick a green cell`, 'bad');
     return;
   }
   if (!picked) { picked = pt; log(`start: ${name(pt)}`); return; }
@@ -213,7 +692,7 @@ cv.addEventListener('click', e => {
 });
 
 $('rand').onclick = () => {
-  stopAll(); routes = [];
+  stopAll(); routes = []; picked = null;
   let walls = 0;
   for (let i = 0; i < 10; i++) {
     const a = map.stops[Math.random() * 15 | 0];
@@ -225,36 +704,7 @@ $('rand').onclick = () => {
   log(`10 random routes drawn, ${walls} wall hits`, walls ? 'bad' : 'ok');
 };
 
-// M001 from actions.csv: stop, action, result. Starts at WP01 (assumed dock).
-const M001 = [
-  ['WP05', 'NAVIGATION',          'FAILED', 'OBSTACLE_DETECTION'],
-  ['WP10', 'VISUAL_INSPECTION',   'SUCCESS'],
-  ['WP10', 'ACOUSTIC_INSPECTION', 'SUCCESS'],
-  ['WP09', 'VISUAL_INSPECTION',   'SUCCESS'],
-  ['WP01', 'ACOUSTIC_INSPECTION', 'SUCCESS'],
-  ['WP12', 'VISUAL_INSPECTION',   'SUCCESS'],
-  ['WP15', 'VISUAL_INSPECTION',   'SUCCESS'],
-  ['WP07', 'THERMAL_INSPECTION',  'SUCCESS'],
-  ['WP03', 'VISUAL_INSPECTION',   'FAILED', 'SENSOR_TIMEOUT'],
-  ['WP05', 'VISUAL_INSPECTION',   'SUCCESS'],
-];
-$('tour').onclick = () => {
-  stopAll(); routes = [];
-  let cur = { ...byId.WP01 };
-  spot = { ...cur }; animator.reset(spot.x * S, spot.y * S, -Math.PI / 2);
-  M001.forEach(([id, action, status, why], i) => {
-    const stop = byId[id];
-    const failedNav = action === 'NAVIGATION' && status === 'FAILED';
-    if (cur.x !== stop.x || cur.y !== stop.y) {
-      cur = enqueueRoute(cur, stop, { color: COLORS[i % COLORS.length], stopShort: failedNav ? 0.7 : 1, label: `${id} ${stop.name}` }) || cur;
-    }
-    queue.push({ kind: 'pause', mode: status === 'FAILED' ? 'fail' : 'inspect', dur: status === 'FAILED' ? 1.8 : 1.2 });
-    log(`${status === 'FAILED' ? '⚠' : '•'} ${id} ${action.toLowerCase().replace('_', ' ')}: ${status}${why ? ' (' + why + ')' : ''}`, status === 'FAILED' ? 'bad' : '');
-  });
-  log('M001 replay (stop order and results from actions.csv; timing not real yet)');
-};
-
-$('clear').onclick = () => { stopAll(); routes = []; picked = null; $('log').innerHTML = ''; };
+$('clear').onclick = () => { resetAll(); $('log').innerHTML = ''; };
 
 requestAnimationFrame(frame);
 </script>

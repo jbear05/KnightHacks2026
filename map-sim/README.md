@@ -13,17 +13,30 @@ Floor plan, walkable grid, and A* pathfinding for the SPOT replay.
 - `src/sim/spot.ts`: the animated SPOT robot dog (Canvas 2D, no images). `SpotAnimator`
   keeps heading + leg phase between frames, `drawSpot()` draws one frame.
   Modes: `idle`, `walk`, `inspect` (scan cone), `fail` (red ring, red eyes).
+- `data/missions.json`: all 27 missions' actions and readings from the kit CSVs (synthetic data),
+  built by `tools/build_missions.py`. The raw kit files stay out of git.
+- `src/sim/scenario.ts`: mission alerts and the what-if scenarios (heat wave, obstacle at the
+  dock). Pure functions, no drawing. See "Alerts and scenarios" below.
+- `src/sim/health.ts`: component health score (from the data) and remaining life (simulated).
+  See "Component health and remaining life" below.
+- `src/sim/replay.ts`: a mission replay without drawing: `MissionRun` (current step, mission progress,
+  which alerts each step raises, skipped steps) and `AlertFeed` (one entry per alert, upgraded
+  when it gets more severe). The sandbox drives SPOT's walking and calls into it.
 - `src/sim/index.ts`: one import for everything above.
 - `src/sim/types.ts`: shared types.
 - `tools/build_grid.py`: builds the grid from hand-traced rectangles (rooms, corridors, doors).
 - `tools/grid-editor.html`: paint cells to fix walls/doors, then download a new map.json.
+- `tools/build_missions.py`: rebuilds data/missions.json from actions.csv + readings.csv.
 - `tests/astar.test.ts`: routes all 210 stop pairs and fails loudly if any is unreachable.
+- `tests/scenario.test.ts`: mission data checks, alert thresholds, and the dock obstacle detour from every stop.
+- `tests/health.test.ts`: health scores add up to their reasons, life estimates, heat effect.
+- `tests/replay.test.ts`: whole-mission replays (alert escalation, skipped steps, finished state).
 
 ## Testing it on its own (no backend, no frontend needed)
 Needs Node 22.6+ (for `--experimental-strip-types`).
 
     npm install          # one dev dependency: esbuild (only for the sandbox)
-    npm test             # 28 automated tests (pathfinding + SPOT motion)
+    npm test             # 64 automated tests (pathfinding, SPOT motion, alerts, scenarios, component health)
     npm run sandbox      # prints the exact URL to open, e.g. http://127.0.0.1:5173/sandbox/
 
 `npm test` checks, for all 210 stop-to-stop routes: every route exists, never
@@ -32,8 +45,14 @@ stops, uses the stairs only when the floor changes, and is as short as an
 independent Dijkstra search. Small hand-made grids check the edge cases
 (walls, diagonal corners, unreachable targets, same start and end).
 
-The sandbox lets you click two stops (or any floor point) and watch a dot walk
-the route. "Replay M001 (with results)" walks the demo mission's real stop sequence and shows each action's result.
+Click a stop to open a card next to it with its components: health, estimated
+life left and the top reason (click a row for all reasons). The card picks the
+nearest spot that doesn't cover other stops, so they stay clickable; Esc, ×
+or a click on empty map closes it.
+Tick "click to route" to click two stops (or any floor point) and watch SPOT
+walk between them instead. Pick a mission and press "Replay mission" to watch SPOT do its real
+steps from the data, with alerts as they happen. Tick "Heat wave" and/or
+"Obstacle at the dock" to add a what-if scenario on top.
 
 Grid editor: the same server prints its URL (…/tools/grid-editor.html).
 Regenerate the grid from rectangles: `npm run grid` (needs Python 3; on
@@ -45,6 +64,67 @@ localhost). If the port is busy it moves to the next one by itself, and any
 
 Note: `build_grid.py` overwrites the grid. If you hand-edit cells in the editor,
 either stop using build_grid.py or copy the change into its rectangles.
+
+## Alerts and scenarios
+Every alert is tagged **DATA** (straight from the kit) or **SIMULATED** (only
+exists because a scenario is on). The kit has no weather, no room temperature
+and no thresholds, so each limit says where it comes from:
+
+| Alert | Level | Limit and source |
+|---|---|---|
+| Failed step (obstacle, path blocked, sensor timeout, ...) | warning | the data |
+| Low battery | warning | ≤ 20% (our threshold) |
+| SPOT unsure of its position | warning | localization confidence < 60% (our threshold) |
+| Questionable reading | info | quality = QUESTIONABLE in the data |
+| Equipment running hot / overheating | warning / critical | ≥ 80°C / ≥ 90°C (our thresholds) |
+| It's getting hot in here (simulated) | warning | air > 40°C |
+| Too hot for SPOT: stop skipped (simulated) | critical | air > 45°C: SPOT's operating range is -20°C to 45°C (SPOT user guide) |
+| Dock too hot to charge (simulated) | warning | air > 40°C at WP15: the charger works from 0°C to 40°C (SPOT user guide) |
+| Obstacle in front of the dock (simulated) | warning / critical | re-routed / no way in |
+| Component life left (simulated) | warning / critical | ≤ 18 / ≤ 6 months, raised when SPOT inspects it |
+
+**Heat wave model** (`HEAT` in scenario.ts): indoor air starts at 26°C. The heat
+wave adds half its strength (slider, default +16°C) at the start of the
+mission, climbing to the full amount by the end. Machinery rooms run hotter
+(mechanical +5°C, process +4°C, electrical +2°C), and floor 2 is +1°C. Equipment
+readings rise 0.9°C per 1°C of extra air. Before each step SPOT checks the air
+at the next stop and skips it if that's above 45°C.
+
+**Obstacle at the dock**: when SPOT heads to WP15 Inspection Dock, an obstacle is
+placed on its route just before the dock. SPOT only notices it when close,
+stops, raises the alert, and re-plans around it (`NavGrid.withBlocked`).
+WP15 being SPOT's charging dock is our assumption; the data doesn't say.
+
+## Component health and remaining life
+**Health score (0-100, from the data)**, per component over all 27 missions.
+Each component starts at 100 and loses points, and every lost point is listed
+as a reason on the stop card:
+
+- readings near the limits (max 40 points): temperature ≥ 80°C −15, ≥ 70°C −6;
+  pressure ≥ 140 psi −12, ≥ 125 psi −5; sound ≥ 80 dB −10, ≥ 75 dB −4;
+  visual score < 72 −12, < 80 −5 (our bands; the data has no limits)
+- failed inspections: −6 each (max 30), since its condition can't be confirmed
+- QUESTIONABLE readings: −4 each (max 20)
+
+Localization confidence is robot telemetry, so it never counts against a component.
+
+**Remaining life (SIMULATED).** The data has no install dates or failure history,
+and only ~10 days of readings (at most 7 of one kind per component), far too
+little to forecast from a trend. So the estimate is built from stated assumptions
+(`LIFE` in health.ts):
+
+- design life by type: heat exchanger 20 yrs, electrical panel 25, pump 12,
+  compressor 15, motor 15, valve 20, gauge 10
+- every component is assumed half way through its design life
+- life left = design life × 0.5 × (health / 100)²
+- heat wave: life left halves for every +10°C (the "10 degree rule" of thumb)
+
+A component belongs to the stop where SPOT inspects it most. Each stop's ring on
+the map is coloured by its weakest component: red < 40, amber < 70, green ≥ 70.
+
+To rebuild the mission data from the kit (paths to your copies of the CSVs):
+
+    python tools/build_missions.py path/to/actions.csv path/to/readings.csv
 
 ## Using it
 ```ts
