@@ -14,6 +14,10 @@ npm run build
 
 The frontend reads data only through `lib/api.ts`. Until Backend's API is live it uses the fixtures in `lib/mock/` (`NEXT_PUBLIC_USE_MOCK` defaults to mock; set it to `false` to use the real API. Requests go to `NEXT_PUBLIC_API_BASE` if set, otherwise to the app's own origin: `VERCEL_URL` on Vercel, `http://localhost:$PORT` locally).
 
+## Mission summaries
+
+Mission reports can generate a fresh summary with `Falconsai/text_summarization` (Apache-2.0). Inference runs in the browser through Transformers.js; no inference API or token is used. The first generation downloads the model from Hugging Face. The summary input is built from the selected mission's status, actions, problems, and questionable readings; operators should verify the summary against the evidence shown on the report.
+
 ## Layout
 
 - `contracts/`: shared types and API contract agreed by the team (`lib/types.ts` re-exports `contracts/types.ts`).
