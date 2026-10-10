@@ -24,8 +24,9 @@ WALK = [
     (160, 150, 305, 176, "F1 north corridor (west part)"),
     (305, 158, 640, 176, "F1 north corridor (above pipe gallery)"),
     (612, 150, 705, 378, "F1 east corridor / Control Room Corridor (WP07)"),
-    (160, 337, 385, 356, "F1 south corridor (west part)"),
-    (305, 300, 385, 356, "F1 south corridor (gallery SW corner)"),
+    (160, 337, 335, 356, "F1 south corridor (west part)"),
+    (305, 300, 385, 322, "F1 south corridor (gallery SW corner, north of Turbine Hall)"),
+    (305, 322, 335, 356, "F1 south corridor (link west of the Turbine Hall tank)"),
     (385, 300, 705, 322, "F1 south corridor (east part)"),
     (160, 337, 192, 445, "F1 west connector to entrance"),
     # rooms
@@ -33,10 +34,10 @@ WALK = [
     (150, 425, 192, 445, "WP01 link to west connector"),
     (60, 252, 155, 420, "WP02 Electrical Room"),
     (165, 182, 300, 330, "WP03 Cooling Loop room"),
-    (165, 42, 268, 148, "WP04 Pump Bay room"),
+    (165, 42, 268, 144, "WP04 Pump Bay room"),
     (310, 180, 605, 292, "WP05 Pipe Gallery walkway"),
     (492, 42, 630, 140, "WP06 Compressor Area room"),
-    (298, 330, 458, 500, "WP08 Turbine Hall North room"),
+    (298, 362, 458, 500, "WP08 Turbine Hall North room"),
     (515, 325, 606, 500, "WP09 Turbine Hall South room"),
     (630, 386, 708, 505, "WP10 Valve Station room"),
     # doorways (bridge the walls between rooms and corridors)
@@ -45,7 +46,7 @@ WALK = [
     (200, 146, 220, 152, "door WP04 -> north corridor"),
     (600, 138, 620, 160, "door WP06 -> north/east corridor"),
     (600, 188, 615, 210, "door Pipe Gallery east steps -> east corridor"),
-    (320, 320, 360, 332, "door WP08 -> south corridor"),
+    (310, 355, 330, 364, "door WP08 -> south corridor (west of the tank)"),
     (550, 318, 575, 328, "door WP09 -> south corridor"),
     (650, 374, 680, 390, "door WP10 -> east corridor"),
     (466, 45, 490, 160, "F1 stairs (top middle)"),
@@ -76,7 +77,7 @@ STAIRS = {
 
 
 def main():
-    m = json.loads(MAP.read_text())
+    m = json.loads(MAP.read_text(encoding="utf-8"))
     w, h = m["width"] // CELL, m["height"] // CELL
     rows = [["."] * w for _ in range(h)]
     for x0, y0, x1, y1, _ in WALK:
@@ -94,7 +95,7 @@ def main():
     for p in m["stops"] + [STAIRS["F1"], STAIRS["F2"]]:
         if rows[int(p["y"] // CELL)][int(p["x"] // CELL)] != "#":
             bad.append(p.get("id", f"stairs F{p['floor']}"))
-    MAP.write_text(json.dumps(m, indent=1))
+    MAP.write_text(json.dumps(m, indent=1), encoding="utf-8", newline="\n")
     print(f"grid {w}x{h}, walkable cells: {sum(r.count('#') for r in rows)}")
     print("points off the grid:", bad or "none")
 

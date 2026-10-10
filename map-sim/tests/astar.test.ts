@@ -152,6 +152,30 @@ describe("B. the real floor plan, all 210 stop pairs", () => {
       assert.ok(nav.isWalkable(Math.floor(s.x / nav.cell), Math.floor(s.y / nav.cell)), s.id);
   });
 
+  test("rooms are sealed: the cells just outside each room are blocked except at its doors", () => {
+    // Same rule build_grid.py uses: a cell belongs to a rect if its centre is inside.
+    const C = nav.cell;
+    const has = (r: { x0: number; y0: number; x1: number; y1: number }, c: number, row: number) => {
+      const x = (c + 0.5) * C, y = (row + 0.5) * C;
+      return r.x0 <= x && x < r.x1 && r.y0 <= y && y < r.y1;
+    };
+    const rects = map.walk_rects ?? [];
+    const rooms = rects.filter(r => /^WP\d\d .*(room|area|bay|dock)$/i.test(r.label));
+    const openings = rects.filter(r => /^door |stairs/.test(r.label));
+    assert.ok(rooms.length >= 10, `expected the room rects in map.json, found ${rooms.length}`);
+    const problems: string[] = [];
+    for (const room of rooms) {
+      const c0 = Math.ceil(room.x0 / C - 0.5), c1 = Math.ceil(room.x1 / C - 0.5) - 1;
+      const r0 = Math.ceil(room.y0 / C - 0.5), r1 = Math.ceil(room.y1 / C - 0.5) - 1;
+      const ring: [number, number][] = [];
+      for (let c = c0; c <= c1; c++) ring.push([c, r0 - 1], [c, r1 + 1]);
+      for (let r = r0; r <= r1; r++) ring.push([c0 - 1, r], [c1 + 1, r]);
+      const leaks = ring.filter(([c, r]) => nav.isWalkable(c, r) && !openings.some(o => has(o, c, r)));
+      if (leaks.length) problems.push(`${room.label}: ${leaks.length} open wall cells, e.g. ${leaks.slice(0, 3).map(([c, r]) => `(${c * C},${r * C})`).join(" ")}`);
+    }
+    assert.deepEqual(problems, [], "rooms with a hole in the wall (fix the rects in tools/build_grid.py)");
+  });
+
   test("every pair has a route", () => {
     for (const [a, b] of pairs) assert.doesNotThrow(() => nav.route(a, b), `${a.id}->${b.id}`);
   });
