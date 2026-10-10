@@ -1,0 +1,20 @@
+{
+  "name": "watchdog-sim",
+  "version": "1.0.0",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --no-warnings --test --test-reporter=spec tests/astar.test.ts tests/spot.test.ts",
+    "sandbox": "node tools/serve.mjs",
+    "grid": "python tools/build_grid.py"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.1"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
+  "private": true,
+  "type": "module"
+}
