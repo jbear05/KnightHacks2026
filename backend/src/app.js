@@ -7,6 +7,7 @@ const locationRoutes = require("./routes/locations");
 const assetRoutes = require("./routes/assets");
 const problemRoutes = require("./routes/problems");
 const insightsRoutes = require("./routes/insights");
+const replayRoutes = require("./routes/replay");
 
 const app = express();
 
@@ -68,6 +69,7 @@ app.use("/api/locations", locationRoutes);
 app.use("/api/assets", assetRoutes);
 app.use("/api/problems", problemRoutes);
 app.use("/api/insights", insightsRoutes);
+app.use("/api/replay", replayRoutes);
 
 app.use((req, res) => {
     res.status(404).json({
