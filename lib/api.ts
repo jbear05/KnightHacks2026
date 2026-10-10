@@ -1,7 +1,9 @@
 // Fetch helpers. Components call these and never read CSVs or hit fetch directly,
 // so switching from fixtures to the real backend is one flag: NEXT_PUBLIC_USE_MOCK.
+import insightsMock from "./mock/insights.json";
 import missionM014 from "./mock/mission-M014.json";
-import type { ApiError, Decision, MissionDetail, Problem } from "./types";
+import missionsMock from "./mock/missions.json";
+import type { ApiError, Decision, Insights, MissionDetail, MissionSummary, Problem } from "./types";
 
 // Mock until Backend's API is live; set NEXT_PUBLIC_USE_MOCK=false to use it.
 export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
@@ -65,4 +67,16 @@ export async function setDecision(problem: Problem, decision: Decision): Promise
     method: "POST",
     body: JSON.stringify({ decision }),
   });
+}
+
+/** GET /api/missions. Mock data comes from scripts/build-insights-mock.mjs. */
+export async function getMissions(): Promise<MissionSummary[]> {
+  if (USE_MOCK) return missionsMock as MissionSummary[];
+  return request<MissionSummary[]>("/api/missions");
+}
+
+/** GET /api/insights. Mock data comes from scripts/build-insights-mock.mjs. */
+export async function getInsights(): Promise<Insights> {
+  if (USE_MOCK) return insightsMock as Insights;
+  return request<Insights>("/api/insights");
 }

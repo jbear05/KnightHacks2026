@@ -9,6 +9,20 @@ const SRC = {
 export type GlyphName = keyof typeof SRC;
 
 /** Bloom = step passed, Blight = failed step or HIGH/CRITICAL problem, Check sensor = questionable reading. */
-export function Glyph({ name, size = 24, label, className }: { name: GlyphName; size?: number; label?: string; className?: string }) {
-  return <Image src={SRC[name]} alt={label ?? ""} aria-hidden={label ? undefined : true} width={size} height={size} className={className} />;
+export function Glyph({
+  name,
+  size = 24,
+  label,
+  className,
+  style,
+}: {
+  name: GlyphName;
+  size?: number;
+  label?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <Image src={SRC[name]} alt={label ?? ""} aria-hidden={label ? undefined : true} width={size} height={size} className={className} style={style} />
+  );
 }
