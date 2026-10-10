@@ -5,7 +5,7 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --no-warnings --test --test-reporter=spec tests/astar.test.ts tests/spot.test.ts tests/scenario.test.ts",
+    "test": "node --experimental-strip-types --no-warnings --test --test-reporter=spec tests/astar.test.ts tests/spot.test.ts tests/scenario.test.ts tests/health.test.ts",
     "sandbox": "node tools/serve.mjs",
     "grid": "python tools/build_grid.py"
   },

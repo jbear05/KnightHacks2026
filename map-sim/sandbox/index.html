@@ -39,11 +39,19 @@
   .counts .tag { margin-left:4px; }
   .legend { font-size:11px; color:var(--mut); margin-bottom:12px; }
   .empty { color:var(--mut); font-size:12px; }
+  .comp { background:#1f232c; border-radius:6px; padding:8px; margin-bottom:6px; }
+  .comp .top { display:flex; justify-content:space-between; gap:8px; }
+  .comp .id { font-weight:700; } .comp .ty { color:var(--mut); font-size:12px; }
+  .bar { height:7px; background:#2c3240; border-radius:4px; margin:6px 0 4px; overflow:hidden; }
+  .bar span { display:block; height:100%; border-radius:4px; }
+  .comp .life { font-size:13px; } .comp .life b { font-size:14px; }
+  .comp ul { margin:4px 0 0; padding-left:16px; color:var(--mut); font-size:12px; }
+  .comp .stats { color:var(--mut); font-size:11px; margin-top:4px; }
 </style>
 </head>
 <body>
 <header>
-  <span><b>Route sandbox</b>: click a stop, then another. Click empty floor to route to any point.</span>
+  <span><b>Route sandbox</b>: click a stop to see its components.</span>
   <span class="grp">
     <label>Mission <select id="mission"></select></label>
     <button id="replay" class="primary">▶ Replay mission</button>
@@ -56,6 +64,8 @@
   <label>Walk speed <select id="speed"><option value="35">slow</option><option value="80" selected>normal</option><option value="220">fast</option></select></label>
   <label><input type="checkbox" id="showGrid"> walkable grid</label>
   <label><input type="checkbox" id="showRoutes" checked> route lines</label>
+  <label><input type="checkbox" id="showHealth" checked> component health</label>
+  <label title="Off: clicking a stop shows its components. On: click two points to route between them."><input type="checkbox" id="clickRoute"> click to route</label>
   <button id="rand">10 random routes</button>
   <button id="clear">Clear</button>
 </header>
@@ -68,6 +78,9 @@
     <div class="row"><span>Step</span><span id="iStep">–</span></div>
     <div class="row"><span>Battery</span><span id="iBat">–</span></div>
     <div class="row" id="rowAir" hidden><span>Air temp there <span class="tag sim">SIM</span></span><span id="iAir">–</span></div>
+    <h3 style="margin-top:14px">Components <span id="cStop" style="color:var(--mut);font-weight:400"></span></h3>
+    <div class="legend">Health from the data · <span class="tag sim">SIMULATED</span> life left (assumed design life and age)</div>
+    <div id="comp"><div class="empty">Click a stop on the map to see its components.</div></div>
     <h3 style="margin-top:14px">Alerts <span class="counts" id="aCount"></span></h3>
     <div class="legend"><span class="tag">DATA</span> from the kit data · <span class="tag sim">SIMULATED</span> what-if scenario only</div>
     <div id="alerts"><div class="empty">Replay a mission to see alerts.</div></div>
@@ -86,6 +99,7 @@ import {
   NavGrid, pointAlong, polylineLength, SpotAnimator, drawSpot, headingAlong,
   missionActions, missionProgress, ambientC, heatWaveExtraC, heatAlert, dockChargerAlert,
   actionAlerts, obstacleOnApproach, distToRect, dockObstacleAlert, LIMITS,
+  componentHealth, componentsAt, remainingWithHeat, lifeAlert, formatLife, LIFE,
 } from './sim.js';
 
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
@@ -102,6 +116,8 @@ cv.style.width = map.width * 1.15 + 'px';
 const nav = new NavGrid(map);
 const byId = Object.fromEntries(map.stops.map(s => [s.id, s]));
 const DOCK = byId.WP15;
+const health = componentHealth(missions);   // score from all 27 missions; life left is simulated
+let selected = null;                         // stop whose components are shown
 const floorOf = x => (x >= map.floors['2'].x0 ? 2 : 1);
 const COLORS = ['#ffd23f','#ff5d8f','#4cc9f0','#7bf1a8','#ff9f1c','#c77dff','#f72585','#90e0ef','#ff6b6b','#b5e48c'];
 const $ = id => document.getElementById(id);
@@ -181,6 +197,7 @@ function replayMission(id) {
 
 function startAction({ act, i, n, prog }) {
   step = { act, i, n, prog };
+  renderComponents();
   const st = byId[act.location_id], heat = heatOn();
   raise(dockChargerAlert(DOCK, prog, heat));
   const hot = heatAlert(st, prog, heat, act.action_id);
@@ -197,6 +214,9 @@ function startAction({ act, i, n, prog }) {
     { kind: 'pause', mode: act.status === 'FAILED' ? 'fail' : 'inspect', dur: act.status === 'FAILED' ? Math.max(1.6, dur) : dur, actionId: act.action_id },
     { kind: 'call', actionId: act.action_id, fn: () => {
       for (const a of actionAlerts(act, missions.readings, st, heatWaveExtraC(prog, heat))) raise(a);
+      const h = health.get(act.asset_id);
+      if (h && act.action_type !== 'NAVIGATION') raise(lifeAlert(h, st.name, st.id, act.action_id, heatWaveExtraC(prog, heat)));
+      selectStop(st);
       log(`${act.status === 'FAILED' ? '⚠' : '•'} ${act.action_id} ${st.id} ${act.action_type.toLowerCase().replace(/_/g, ' ')}: ${act.status}`,
           act.status === 'FAILED' ? 'bad' : '');
     } },
@@ -349,6 +369,7 @@ function draw(alpha, now) {
       ctx.setLineDash([]);
     }
   }
+  if ($('showHealth').checked) drawHealthRings();
   if (heatOn()) drawHeat(step ? step.prog : 0);
   if (obstacle) drawObstacle(obstacle);
   if (picked) {
@@ -420,6 +441,61 @@ function roundRect(x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 
+// ---------------------------------------------------------------- component health
+const healthColor = score => (score < 40 ? '#ff5c5c' : score < 70 ? '#ffb020' : '#5fd38d');
+const currentExtraC = () => (heatOn() ? heatWaveExtraC(step ? step.prog : 0, heatOn()) : 0);
+
+/** Ring round each stop, coloured by its weakest component. */
+function drawHealthRings() {
+  for (const s of map.stops) {
+    const at = componentsAt(health, s.id);
+    if (!at.length) continue;
+    const col = healthColor(at[0].score), x = s.x*S, y = s.y*S - 22;
+    ctx.fillStyle = col + '33'; ctx.beginPath(); ctx.arc(x, y, 44, 0, 7); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = selected === s ? 12 : 8;
+    ctx.beginPath(); ctx.arc(x, y, 44, 0, 7); ctx.stroke();
+  }
+}
+
+function selectStop(s) {
+  selected = s;
+  renderComponents();
+}
+
+function renderComponents() {
+  if (!selected) { $('cStop').textContent = ''; return; }
+  $('cStop').textContent = `at ${selected.id} ${selected.name}`;
+  const at = componentsAt(health, selected.id), extra = currentExtraC();
+  $('comp').innerHTML = at.length ? at.map(h => {
+    const hot = extra > 0 ? remainingWithHeat(h, extra) : null;
+    const months = hot ?? h.remainingMonths;
+    const col = months <= LIFE.criticalMonths ? 'var(--crit)' : months <= LIFE.warnMonths ? 'var(--warn)' : 'var(--ink)';
+    return `<div class="comp">
+      <div class="top"><span class="id">${esc(h.asset_id)}</span><span class="ty">${esc(h.type)}</span></div>
+      <div class="bar"><span style="width:${h.score}%;background:${healthColor(h.score)}"></span></div>
+      <div class="life">Health <b>${h.score}</b>/100 · life left <b style="color:${col}">≈ ${esc(formatLife(months))}</b> <span class="tag sim">SIM</span></div>
+      ${hot !== null ? `<div class="stats">${esc(formatLife(h.remainingMonths))} normally; the heat wave (+${extra.toFixed(0)}°C) cuts it (life halves per +${LIFE.halvingC}°C)</div>` : ''}
+      ${h.reasons.length ? `<ul>${h.reasons.map(r => `<li>−${r.points}: ${esc(r.text)}</li>`).join('')}</ul>` : '<ul><li>Nothing flagged in the data</li></ul>'}
+      <div class="stats">${h.inspections} inspections · ${h.failed} failed · ${h.readings} readings · ${h.questionable} questionable · design life ${h.designYears} yrs (assumed)</div>
+    </div>`;
+  }).join('') : '<div class="empty">No components are based here.</div>';
+  const visiting = [...health.values()].filter(h => h.stops[0] !== selected.id && h.stops.includes(selected.id));
+  if (visiting.length) $('comp').innerHTML += `<div class="stats" style="margin-bottom:6px">Also checked here now and then: ${
+    visiting.map(h => `${esc(h.asset_id)} (based at ${esc(h.stops[0])})`).join(', ')}</div>`;
+}
+
+/** The stop under a click: the pin tip, or the pin head and label just above it. */
+function stopAt(x, y) {
+  let best = null, bestD = Infinity;
+  for (const s of map.stops) {
+    const dx = x - s.x, dy = y - s.y;
+    if (Math.abs(dx) > 18 || dy < -36 || dy > 14) continue;
+    const d = Math.hypot(dx, dy + 12);
+    if (d < bestD) { best = s; bestD = d; }
+  }
+  return best;
+}
+
 // ---------------------------------------------------------------- info panel
 function showRouteInfo(from, to, route, ms) {
   const ok = wallCheck(route);
@@ -460,11 +536,17 @@ $('mission').innerHTML = ids.map(id => {
   return `<option value="${id}">${id} · ${a[0].scenario.toLowerCase()}${dock}</option>`;
 }).join('');
 $('replay').onclick = () => replayMission($('mission').value);
-$('heatC').oninput = () => { $('heatV').textContent = `+${$('heatC').value}°C`; };
+$('heatC').oninput = () => { $('heatV').textContent = `+${$('heatC').value}°C`; renderComponents(); };
+$('heat').onchange = renderComponents;
 
 cv.addEventListener('click', e => {
   const b = cv.getBoundingClientRect();
   const x = (e.clientX - b.left) * map.width / b.width, y = (e.clientY - b.top) * map.height / b.height;
+  if (!$('clickRoute').checked) {
+    const s = stopAt(x, y);
+    if (s) { selectStop(s); highlight = { stop: s, until: performance.now() + 1200 }; }
+    return;
+  }
   const near = map.stops.find(s => Math.hypot(s.x - x, s.y - y) < 12);
   const pt = near || { x, y, floor: floorOf(x) };
   if (!near && !nav.isWalkable(Math.floor(x / nav.cell), Math.floor(y / nav.cell))) {
