@@ -4,6 +4,9 @@ const pool = require("./db/pool");
 
 const missionRoutes = require("./routes/missions");
 const locationRoutes = require("./routes/locations");
+const assetRoutes = require("./routes/assets");
+const problemRoutes = require("./routes/problems");
+const insightsRoutes = require("./routes/insights");
 
 const app = express();
 
@@ -62,6 +65,9 @@ app.get("/api/problems", async (req, res) => {
 // Handle unknown routes
 app.use("/api/missions", missionRoutes);
 app.use("/api/locations", locationRoutes);
+app.use("/api/assets", assetRoutes);
+app.use("/api/problems", problemRoutes);
+app.use("/api/insights", insightsRoutes);
 
 app.use((req, res) => {
     res.status(404).json({
