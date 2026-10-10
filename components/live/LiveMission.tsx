@@ -5,11 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { SeverityBadge } from "@/components/ui/SeverityBadge";
 import { SEVERITY_LABEL, titleCase } from "@/lib/format";
-import { deriveLive, msOf, stepSentence, timelineFromMission } from "@/lib/replay";
+import { clockOf, deriveLive, msOf, stepSentence, timelineFromMission } from "@/lib/replay";
 import { SERIOUS } from "@/lib/report";
+import { DEFAULT_HEAT_C, MAX_HEAT_C, NO_SCENARIO, scenarioState, withScenario, type Scenario } from "@/lib/scenarios";
 import type { MissionDetail } from "@/lib/types";
 import Image from "next/image";
-// Swap for Map & Sim's <FacilityMap /> once map-sim is merged; the props are the contract's.
 import { FacilityMap, type MapLayers } from "@/components/map/FacilityMap";
 import { ReplayBar } from "./ReplayBar";
 import { RightRail } from "./RightRail";
@@ -21,14 +21,30 @@ const LAYERS: { id: MapLayers; label: string }[] = [
   { id: "both", label: "Both" },
 ];
 
-/** `at` ("02:14:00", plant time) opens the replay paused at that moment, e.g. to demo or screenshot a state. */
-export function LiveMission({ mission, at }: { mission: MissionDetail; at?: string }) {
+/**
+ * `at` ("02:14:00", plant time) opens the replay paused at that moment, e.g. to demo or screenshot a state.
+ * `scenario` opens it with Map & Sim's what-ifs on (?heat=16&obstacle=1).
+ */
+export function LiveMission({ mission, at, scenario: initial = NO_SCENARIO }: { mission: MissionDetail; at?: string; scenario?: Scenario }) {
   const timeline = useMemo(() => timelineFromMission(mission), [mission]);
   const plan = useMemo(() => [...mission.actions].sort((a, b) => a.sequence - b.sequence), [mission]);
   const atMs = at ? msOf(`${mission.start_time.slice(0, 10)}T${at}`) : NaN;
   const startAt = Number.isFinite(atMs) ? atMs : undefined;
   const replay = useReplay(timeline, { speed: 60, autoplay: startAt === undefined, startAt });
-  const live = deriveLive(mission, replay.events, replay.clock);
+  const [heatOn, setHeatOn] = useState(initial.heatC > 0);
+  const [heatC, setHeatC] = useState(initial.heatC || DEFAULT_HEAT_C);
+  const [obstacle, setObstacle] = useState(initial.obstacle);
+  const base = deriveLive(mission, replay.events, replay.clock);
+  const cur = base.current;
+  const sim = scenarioState(
+    mission.mission_id,
+    { heatC: heatOn ? heatC : 0, obstacle },
+    new Set(base.results.map((r) => r.action.action_id)),
+    cur ? { action_id: cur.action.action_id, location_id: cur.action.location_id, progress: cur.progress, inspecting: cur.phase === "inspecting" } : null,
+    base.ended,
+    clockOf(replay.clock),
+  );
+  const live = withScenario(base, sim);
   const [layers, setLayers] = useState<MapLayers>("both");
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -37,7 +53,9 @@ export function LiveMission({ mission, at }: { mission: MissionDetail; at?: stri
   const alertLabels = Object.fromEntries([...serious].reverse().map((p) => [p.location_id, SEVERITY_LABEL[p.severity]]));
 
   const subtitle = live.current
-    ? stepSentence(live.current, plan.length)
+    ? sim.skipped.has(live.current.action.action_id)
+      ? `Step ${live.current.step} of ${plan.length} · skipping ${live.current.action.location_id}: too hot for SPOT`
+      : stepSentence(live.current, plan.length)
     : live.ended
       ? `Mission finished · ${live.succeeded} of ${plan.length} steps succeeded`
       : "SPOT is waiting at the Main Entrance (WP01)";
@@ -84,6 +102,8 @@ export function LiveMission({ mission, at }: { mission: MissionDetail; at?: stri
               selectedLocationId={selected}
               onSelectLocation={(id) => setSelected((s) => (s === id ? null : id))}
               layers={layers}
+              obstacle={obstacle}
+              skipped={[...sim.skipped]}
             />
           </div>
 
@@ -98,7 +118,34 @@ export function LiveMission({ mission, at }: { mission: MissionDetail; at?: stri
                 </li>
               ))}
             </ul>
-            <p className="text-fg-muted type-body-sm">Walks follow the route grid around walls; SPOT hops between the two stairwells.</p>
+            <div role="group" aria-label="What-if scenarios" className="flex min-h-7 flex-wrap items-center gap-x-4 gap-y-1 type-body-sm">
+              <span className="text-fg-muted type-label">What-if</span>
+              <label className="flex items-center gap-1.5">
+                <input type="checkbox" checked={heatOn} onChange={(e) => setHeatOn(e.target.checked)} className="size-4 accent-[var(--color-high)]" />
+                Heat wave
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={MAX_HEAT_C}
+                value={heatC}
+                disabled={!heatOn}
+                onChange={(e) => setHeatC(Number(e.target.value))}
+                aria-label="Heat wave strength"
+                aria-valuetext={`plus ${heatC} degrees Celsius`}
+                className="w-24 accent-[var(--color-high)] disabled:opacity-40"
+              />
+              <span className={`type-mono ${heatOn ? "" : "text-fg-subtle"}`}>+{heatC}°C</span>
+              <label className="flex items-center gap-1.5">
+                <input type="checkbox" checked={obstacle} onChange={(e) => setObstacle(e.target.checked)} className="size-4 accent-[var(--color-high)]" />
+                Obstacle at the dock
+              </label>
+              {sim.airC !== null && cur && (
+                <span className="text-fg-muted">
+                  Air at {cur.action.location_id} <span className={`type-mono ${sim.airC > 45 ? "text-critical" : sim.airC > 40 ? "text-high" : "text-fg"}`}>{sim.airC}°C</span>
+                </span>
+              )}
+            </div>
             <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 type-body-sm" aria-label="Map legend">
               <Legend src="/figma/step-success-sm.svg" label="Succeeded step" />
               <Legend src="/figma/step-failed-sm.svg" label="Failed step" />

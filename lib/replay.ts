@@ -112,12 +112,14 @@ export interface StepResult {
 /** One row of the attention queue: a serious problem, or a failed step no problem already covers. */
 export type QueueItem =
   | { kind: "problem"; key: string; problem: Problem }
-  | { kind: "failed"; key: string; action: Action };
+  | { kind: "failed"; key: string; action: Action }
+  /** A what-if alert from Map & Sim's scenarios (heat wave, dock obstacle, component life). */
+  | { kind: "sim"; key: string; level: "warning" | "critical"; title: string; detail: string; time: string };
 
 export interface FeedRow {
   key: string;
   time: string;
-  glyph: "next" | "bloom" | "blight" | "problem" | "spot";
+  glyph: "next" | "bloom" | "blight" | "problem" | "spot" | "sim";
   text: string;
   detail: string;
 }

@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FacilityMapHeatmapProps, FacilityMapLiveProps, LocationId, SpotStatus } from "@/contracts/facility-map-props";
 import { LOCATIONS } from "@/lib/reference";
 import { msOf, START_LOCATION } from "@/lib/replay";
+import { DOCK_ID, dockWalk, fromStop } from "@/lib/scenarios";
 import type { Action } from "@/lib/types";
 import mapData from "@/map-sim/data/map.json";
 import floorplan from "@/map-sim/public/floorplan.png";
@@ -76,14 +77,16 @@ const SPOT_LEN = 26;
  * The walk between two stops as plan-space polylines (two when it takes the stairs).
  * Each end is nudged onto its Figma pin and the nudge fades out along the leg.
  */
-function walkLegs(from: LocationId, to: LocationId, base: MapBase): Pt[][] {
+function walkLegs(from: LocationId, to: LocationId, base: MapBase, obstacle = false): Pt[][] {
   const a = STOPS.get(from);
   const b = STOPS.get(to);
   const pa = PINS[from];
   const pb = PINS[to];
   if (!a || !b || !pa || !pb || from === to) return [];
-  if (base === "photo") return NAV.route({ x: a.x, y: a.y, floor: a.floor }, { x: b.x, y: b.y, floor: b.floor }).legs.map((l) => l.map(toPhoto));
-  const legs = NAV.route({ x: a.x, y: a.y, floor: a.floor }, { x: b.x, y: b.y, floor: b.floor }).legs.map((l) => l.map(toPlan));
+  // With the dock obstacle on, the walk to the dock is map-sim's: up to the obstacle, then around it.
+  const raw = (obstacle && to === DOCK_ID ? dockWalk(from)?.legs : null) ?? NAV.route({ x: a.x, y: a.y, floor: a.floor }, { x: b.x, y: b.y, floor: b.floor }).legs;
+  if (base === "photo") return raw.map((l) => l.map(toPhoto));
+  const legs = raw.map((l) => l.map(toPlan));
   const offA = (() => { const q = toPlan({ x: a.x, y: a.y, floor: a.floor }); return { x: pa.x - q.x, y: pa.y - q.y }; })();
   const offB = (() => { const q = toPlan({ x: b.x, y: b.y, floor: b.floor }); return { x: pb.x - q.x, y: pb.y - q.y }; })();
   return legs.map((leg, i) => {
@@ -143,6 +146,10 @@ type LiveProps = FacilityMapLiveProps & {
   alertLabels?: Partial<Record<LocationId, string>>;
   /** Floor plan to draw on (default: Map & Sim's photo). */
   base?: MapBase;
+  /** What-if: an obstacle in front of the dock (WP15); SPOT walks around it (map-sim's scenario). */
+  obstacle?: boolean;
+  /** What-if: action ids SPOT skips because the stop is too hot; it doesn't walk there. */
+  skipped?: string[];
 };
 
 const showRouteFor = (layers: MapLayers) => layers !== "findings";
@@ -150,18 +157,21 @@ const showRouteFor = (layers: MapLayers) => layers !== "findings";
 type Leg = { from: LocationId; to: LocationId; kind: "ok" | "failed" | "next" };
 
 /** Where SPOT is at mission-clock `t`, given the events so far (re-derived, so seeking just works). */
-function spotAt(plan: Action[], doneIds: Set<string>, t: number, startTs: number) {
+function spotAt(plan: Action[], doneIds: Set<string>, t: number, startTs: number, skipped: ReadonlySet<string>) {
   const next = plan.findIndex((a) => !doneIds.has(a.action_id));
   if (next === -1) {
-    const last = plan[plan.length - 1];
-    return { index: plan.length, from: last?.location_id ?? START_LOCATION, to: last?.location_id ?? START_LOCATION, progress: 1, inspecting: false };
+    const here = fromStop(plan, plan.length, skipped);
+    return { index: plan.length, from: here, to: here, progress: 1, inspecting: false };
   }
   const a = plan[next];
   const prev = plan[next - 1];
+  const from = fromStop(plan, next, skipped);
+  // Too hot (what-if): SPOT stays where it is for this step.
+  if (skipped.has(a.action_id)) return { index: next, from, to: from, progress: 0, inspecting: false };
   const leave = prev ? msOf(prev.timestamp) : startTs;
   const arrive = Math.max(leave, msOf(a.timestamp) - (a.duration_sec ?? 0) * 1000);
   const progress = t >= arrive ? 1 : Math.max(0, (t - leave) / Math.max(1, arrive - leave));
-  return { index: next, from: prev?.location_id ?? START_LOCATION, to: a.location_id, progress, inspecting: t >= arrive };
+  return { index: next, from, to: a.location_id, progress, inspecting: t >= arrive };
 }
 
 function LiveFacilityMap({
@@ -177,8 +187,12 @@ function LiveFacilityMap({
   onSpotStatus,
   layers = "both",
   base = "photo",
+  obstacle = false,
+  skipped: skippedIds,
   className = "",
 }: LiveProps) {
+  const skippedKey = (skippedIds ?? []).join(",");
+  const skipped = useMemo(() => new Set(skippedKey ? skippedKey.split(",") : []), [skippedKey]);
   const sorted = useMemo(() => [...plan].sort((a, b) => a.sequence - b.sequence), [plan]);
   const latest = events[events.length - 1];
   const latestTs = latest ? msOf(latest.timestamp) : sorted.length ? msOf(sorted[0].timestamp) : 0;
@@ -217,10 +231,10 @@ function LiveFacilityMap({
   const ended = latest?.event_type === "MISSION_COMPLETED";
   const nextTs = sorted.find((a) => !results.has(a.action_id));
   const clamped = Math.min(t, nextTs ? msOf(nextTs.timestamp) : latestTs);
-  const spot = spotAt(sorted, new Set(results.keys()), clamped, startTs);
+  const spot = spotAt(sorted, new Set(results.keys()), clamped, startTs, skipped);
   const walks = useMemo(
-    () => sorted.map((act, i) => walkLegs(i === 0 ? START_LOCATION : sorted[i - 1].location_id, act.location_id, base)),
-    [sorted, base],
+    () => sorted.map((act, i) => (skipped.has(act.action_id) ? [] : walkLegs(fromStop(sorted, i, skipped), act.location_id, base, obstacle))),
+    [sorted, base, obstacle, skipped],
   );
   const current = walks[spot.index] ?? [];
   const split = splitWalk(current, spot.progress);
@@ -288,12 +302,12 @@ function LiveFacilityMap({
   // Legs: start -> stop 1 -> stop 2 ... coloured by the result at the stop they lead to.
   const legs: Leg[] = sorted.map((act, i) => {
     const r = results.get(act.action_id);
-    return { from: i === 0 ? START_LOCATION : sorted[i - 1].location_id, to: act.location_id, kind: r === undefined ? "next" : r ? "ok" : "failed" };
+    return { from: fromStop(sorted, i, skipped), to: act.location_id, kind: r === undefined ? "next" : r ? "ok" : "failed" };
   });
 
   // Pin state: failed beats succeeded beats still-on-the-route beats not-in-this-mission.
   const pinState = (id: LocationId) => {
-    const visits = sorted.filter((x) => x.location_id === id);
+    const visits = sorted.filter((x) => x.location_id === id && !skipped.has(x.action_id));
     if (!visits.length) return "idle" as const;
     if (visits.some((x) => results.get(x.action_id) === false)) return "failed" as const;
     if (visits.some((x) => results.get(x.action_id) === true)) return "ok" as const;
@@ -301,6 +315,18 @@ function LiveFacilityMap({
   };
 
   const showRoute = showRouteFor(layers);
+  // The obstacle sits on the approach of the first walk to the dock in this mission.
+  const dockStep = sorted.findIndex((a) => a.location_id === DOCK_ID);
+  const dw = obstacle && dockStep >= 0 && !skipped.has(sorted[dockStep].action_id) ? dockWalk(fromStop(sorted, dockStep, skipped)) : null;
+  const obstacleRect = dw
+    ? (() => {
+        const f = STOPS.get(DOCK_ID)?.floor ?? 2;
+        const conv = base === "photo" ? toPhoto : toPlan;
+        const p0 = conv({ x: dw.rect.x0, y: dw.rect.y0, floor: f });
+        const p1 = conv({ x: dw.rect.x1, y: dw.rect.y1, floor: f });
+        return { x: p0.x, y: p0.y, width: p1.x - p0.x, height: p1.y - p0.y };
+      })()
+    : null;
   const showFindings = layers !== "route";
 
   return (
@@ -314,6 +340,18 @@ function LiveFacilityMap({
           <text x={36} y={15} className="fill-fg font-display text-[16px] font-semibold">Floor 1</text>
           <text x={622} y={15} className="fill-fg font-display text-[16px] font-semibold">Floor 2</text>
         </>
+      )}
+
+      {obstacleRect && (
+        <g aria-label="Obstacle in front of the dock (what-if)">
+          <defs>
+            <pattern id="hazard" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="8" height="8" fill="#B5651D" />
+              <rect width="4" height="8" fill="#FFD23F" />
+            </pattern>
+          </defs>
+          <rect {...obstacleRect} rx={2} fill="url(#hazard)" stroke="#1F3A24" strokeWidth={1.5} />
+        </g>
       )}
 
       {showRoute &&
