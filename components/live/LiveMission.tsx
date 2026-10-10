@@ -103,7 +103,6 @@ export function LiveMission({ mission, at }: { mission: MissionDetail; at?: stri
               <Legend src="/figma/step-success-sm.svg" label="Succeeded step" />
               <Legend src="/figma/step-failed-sm.svg" label="Failed step" />
               <Legend src="/figma/icon-alert-triangle-high.svg" label="Equipment finding" />
-              <Legend src="/figma/glyph-next.svg" label="Next stop" />
               <Legend src="/figma/glyph-spot.svg" label="SPOT" />
             </ul>
           </div>

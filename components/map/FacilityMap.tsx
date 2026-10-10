@@ -12,6 +12,7 @@ import { LOCATIONS } from "@/lib/reference";
 import { msOf, START_LOCATION } from "@/lib/replay";
 import type { Action } from "@/lib/types";
 import mapData from "@/map-sim/data/map.json";
+import floorplan from "@/map-sim/public/floorplan.png";
 import { NavGrid, SpotAnimator, drawSpot, headingAlong, pointAlong, polylineLength } from "@/map-sim/src/sim/index.ts";
 import type { MapData, Pt, SpotMode } from "@/map-sim/src/sim/index.ts";
 
@@ -51,6 +52,23 @@ const MAP = mapData as MapData;
 const NAV = new NavGrid(MAP);
 const STOPS = new Map(MAP.stops.map((s) => [s.id, s]));
 
+/**
+ * Map & Sim's floor plan photo (floorplan.png, same aspect) scaled into the 872 x 474 box. Pins and
+ * routes use map-sim's own coordinates, so they sit exactly on the pins printed in the photo.
+ */
+const PHOTO = { sx: W / 1095, ox: 0, sy: H / 595, oy: 0 };
+const toPhoto = (p: Pt) => ({ x: PHOTO.sx * p.x + PHOTO.ox, y: PHOTO.sy * p.y + PHOTO.oy, floor: p.floor });
+const PHOTO_PINS = Object.fromEntries(MAP.stops.map((s) => [s.id, toPhoto(s)])) as Record<LocationId, Pt>;
+
+/** Which floor plan the map draws on: Map & Sim's photo, or the Figma cartoon plan. */
+export type MapBase = "photo" | "cartoon";
+
+/** Route colours per base: the dark photo needs stronger lines than the cream cartoon. */
+const ROUTE = {
+  cartoon: { ok: { stroke: "#3F8E3E", strokeOpacity: 0.3 }, next: { stroke: "#1F3A24", strokeOpacity: 0.3 } },
+  photo: { ok: { stroke: "#7BD06F", strokeOpacity: 0.9 }, next: { stroke: "#FFFDF5", strokeOpacity: 0.75 } },
+} as const;
+
 /** Body length of SPOT on the plan, in plan px. */
 const SPOT_LEN = 26;
 
@@ -58,12 +76,13 @@ const SPOT_LEN = 26;
  * The walk between two stops as plan-space polylines (two when it takes the stairs).
  * Each end is nudged onto its Figma pin and the nudge fades out along the leg.
  */
-function walkLegs(from: LocationId, to: LocationId): Pt[][] {
+function walkLegs(from: LocationId, to: LocationId, base: MapBase): Pt[][] {
   const a = STOPS.get(from);
   const b = STOPS.get(to);
   const pa = PINS[from];
   const pb = PINS[to];
   if (!a || !b || !pa || !pb || from === to) return [];
+  if (base === "photo") return NAV.route({ x: a.x, y: a.y, floor: a.floor }, { x: b.x, y: b.y, floor: b.floor }).legs.map((l) => l.map(toPhoto));
   const legs = NAV.route({ x: a.x, y: a.y, floor: a.floor }, { x: b.x, y: b.y, floor: b.floor }).legs.map((l) => l.map(toPlan));
   const offA = (() => { const q = toPlan({ x: a.x, y: a.y, floor: a.floor }); return { x: pa.x - q.x, y: pa.y - q.y }; })();
   const offB = (() => { const q = toPlan({ x: b.x, y: b.y, floor: b.floor }); return { x: pb.x - q.x, y: pb.y - q.y }; })();
@@ -122,6 +141,8 @@ type Props = FacilityMapLiveProps & {
   layers?: MapLayers;
   /** Proposed addition: text for each alert badge ("High"), since alertLocationIds carries no severity. */
   alertLabels?: Partial<Record<LocationId, string>>;
+  /** Floor plan to draw on (default: Map & Sim's photo). */
+  base?: MapBase;
 };
 
 const showRouteFor = (layers: MapLayers) => layers !== "findings";
@@ -155,6 +176,7 @@ export function FacilityMap({
   onHoverLocation,
   onSpotStatus,
   layers = "both",
+  base = "photo",
   className = "",
 }: Props) {
   const sorted = useMemo(() => [...plan].sort((a, b) => a.sequence - b.sequence), [plan]);
@@ -197,12 +219,13 @@ export function FacilityMap({
   const clamped = Math.min(t, nextTs ? msOf(nextTs.timestamp) : latestTs);
   const spot = spotAt(sorted, new Set(results.keys()), clamped, startTs);
   const walks = useMemo(
-    () => sorted.map((act, i) => walkLegs(i === 0 ? START_LOCATION : sorted[i - 1].location_id, act.location_id)),
-    [sorted],
+    () => sorted.map((act, i) => walkLegs(i === 0 ? START_LOCATION : sorted[i - 1].location_id, act.location_id, base)),
+    [sorted, base],
   );
   const current = walks[spot.index] ?? [];
   const split = splitWalk(current, spot.progress);
-  const home = PINS[spot.to] ?? PINS[START_LOCATION];
+  const pinsXY: Record<LocationId, { x: number; y: number }> = base === "photo" ? PHOTO_PINS : PINS;
+  const home = pinsXY[spot.to] ?? pinsXY[START_LOCATION];
   const spotXY: { x: number; y: number } = split.at ?? home;
   const prevFailed = spot.index > 0 && results.get(sorted[spot.index - 1]?.action_id) === false;
   const spotMode: SpotMode = ended ? "idle" : spot.inspecting ? "inspect" : prevFailed && spot.progress < 0.12 ? "fail" : "walk";
@@ -283,9 +306,15 @@ export function FacilityMap({
   return (
     <div className={`relative ${className}`}>
     <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="group" aria-label="Facility map, floors 1 and 2">
-      <image href="/figma/floor-plan-cartoon.svg" x={0} y={0} width={W} height={H} />
-      <text x={36} y={15} className="fill-fg font-display text-[16px] font-semibold">Floor 1</text>
-      <text x={622} y={15} className="fill-fg font-display text-[16px] font-semibold">Floor 2</text>
+      {base === "photo" ? (
+        <image href={floorplan.src} x={PHOTO.ox} y={PHOTO.oy} width={MAP.width * PHOTO.sx} height={MAP.height * PHOTO.sy} preserveAspectRatio="none" />
+      ) : (
+        <>
+          <image href="/figma/floor-plan-cartoon.svg" x={0} y={0} width={W} height={H} />
+          <text x={36} y={15} className="fill-fg font-display text-[16px] font-semibold">Floor 1</text>
+          <text x={622} y={15} className="fill-fg font-display text-[16px] font-semibold">Floor 2</text>
+        </>
+      )}
 
       {showRoute &&
         legs.map((leg, i) => {
@@ -296,17 +325,17 @@ export function FacilityMap({
             // Current leg: walked part in green, the rest dashed SPOT yellow.
             return (
               <g key={i}>
-                <path d={pathD(split.done)} stroke="#3F8E3E" strokeOpacity={0.3} strokeWidth={4} {...line} />
+                <path d={pathD(split.done)} {...ROUTE[base].ok} strokeWidth={4} {...line} />
                 <path d={pathD(split.rest)} stroke="#E0A800" strokeWidth={4} strokeDasharray="6.37 5.57" {...line} />
               </g>
             );
           }
           if (leg.kind === "next")
-            return <path key={i} d={pathD(walk)} stroke="#1F3A24" strokeOpacity={0.3} strokeWidth={2.4} strokeDasharray="0.8 7.17" {...line} />;
+            return <path key={i} d={pathD(walk)} {...ROUTE[base].next} strokeWidth={2.4} strokeDasharray="0.8 7.17" {...line} />;
           return leg.kind === "failed" ? (
             <path key={i} d={pathD(walk)} stroke="#B8263F" strokeWidth={4} {...line} />
           ) : (
-            <path key={i} d={pathD(walk)} stroke="#3F8E3E" strokeOpacity={0.3} strokeWidth={4} {...line} />
+            <path key={i} d={pathD(walk)} {...ROUTE[base].ok} strokeWidth={4} {...line} />
           );
         })}
 
@@ -320,6 +349,14 @@ export function FacilityMap({
         const stateText = { ok: "step succeeded", failed: "step failed", next: "on the route", idle: "not in this mission" }[state];
         const alert = showFindings && alertLocationIds.includes(id);
         const interactive = !!onSelectLocation;
+        const photo = base === "photo";
+        const tip = pinsXY[id] ?? pin;
+        // On the photo, the printed pin and label stay; our state glyph sits at the pin's top right.
+        const glyph = photo
+          ? { x: tip.x + 13, y: tip.y - 27, size: state === "ok" ? 24 : state === "failed" ? 22 : 0 }
+          : { x: pin.x, y: pin.y, size };
+        const ring = photo ? { x: tip.x, y: tip.y - 15, r: 14 } : { x: pin.x, y: pin.y, r: size / 2 + 6 };
+        const alertY = photo ? tip.y + 20 : Math.max(pin.y + size / 2, pin.y + pin.ly + 16) + 9;
         return (
           <g
             key={id}
@@ -337,13 +374,16 @@ export function FacilityMap({
             onMouseLeave={() => onHoverLocation?.(null)}
             className={interactive ? "cursor-pointer outline-none [&:focus-visible>circle]:stroke-line-strong" : undefined}
           >
-            <circle cx={pin.x} cy={pin.y} r={size / 2 + 6} fill="transparent" stroke={selectedLocationId === id ? "#1F3A24" : "transparent"} strokeWidth={2} />
-            <image href={src} x={pin.x - size / 2} y={pin.y - size / 2} width={size} height={size} />
-            <text x={pin.x + pin.lx} y={pin.y + pin.ly + 12} className={`font-mono text-[12px] ${state === "idle" ? "fill-fg-subtle" : "fill-fg"}`}>
-              {label}
-            </text>
+            <circle cx={ring.x} cy={ring.y} r={ring.r} fill="transparent" stroke={selectedLocationId === id ? (photo ? "#FFFDF5" : "#1F3A24") : "transparent"} strokeWidth={2} />
+            {glyph.size > 0 && <image href={src} x={glyph.x - glyph.size / 2} y={glyph.y - glyph.size / 2} width={glyph.size} height={glyph.size} />}
+            {!photo && (
+              <text x={pin.x + pin.lx} y={pin.y + pin.ly + 12} className={`font-mono text-[12px] ${state === "idle" ? "fill-fg-subtle" : "fill-fg"}`}>
+                {label}
+              </text>
+            )}
             {alert && (
-              <g transform={`translate(${pin.x - 7} ${Math.max(pin.y + size / 2, pin.y + pin.ly + 16) + 9})`}>
+              <g transform={`translate(${tip.x - (photo ? 30 : 7)} ${alertY})`}>
+                {photo && <rect x={-4} y={-2} width={68} height={20} rx={6} fill="#FFFDF5" stroke="#1F3A24" strokeWidth={1.5} />}
                 <image href="/figma/icon-alert-triangle-high.svg" width={16} height={16} />
                 <text x={20} y={12.5} className="fill-high font-sans text-[13px] font-medium">
                   {alertLabels[id] ?? "Review"}
