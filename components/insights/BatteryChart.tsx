@@ -1,7 +1,7 @@
 import Image from "next/image";
 import type { BatteryBar } from "@/lib/insights";
 
-// Column chart, % of steps ok per battery bucket, with the "dock before 20%" zone shaded.
+// Column chart, % of steps ok per battery bucket, with the suggested "dock before 20%" zone shaded.
 // Geometry follows the Figma chart (384 × 330): plot from y=40 (100%) to y=260 (0%).
 const TOP = 40;
 const PLOT = 220;
@@ -47,7 +47,7 @@ export function BatteryChart({ bars }: { bars: BatteryBar[] }) {
               style={{ left: LEFT + below * STEP + 8, top: 2 }}
             >
               <Image src="/figma/icon-alert-triangle-ink.svg" alt="" width={14} height={14} />
-              Dock before 20%
+              Suggested: dock before 20%
             </p>
           </>
         )}

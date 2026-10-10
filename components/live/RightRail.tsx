@@ -98,7 +98,7 @@ function Battery({ live }: { live: LiveState }) {
       </p>
       <p className="flex items-center gap-1.5 text-fg-subtle type-badge">
         <Image src="/figma/icon-info.svg" alt="" width={14} height={14} />
-        Success drops to {Math.round((succeeded / total) * 100)}% below {BATTERY_LOW}% battery ({succeeded} of {total} steps).
+        Across all missions, {succeeded} of {total} steps below {BATTERY_LOW}% battery succeeded (small sample; see Insights).
       </p>
     </section>
   );

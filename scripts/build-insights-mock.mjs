@@ -76,7 +76,13 @@ const repeatAssets = assets
   .filter((a) => a.problems > 1)
   .sort((a, b) => b.problems - a.problems);
 
-const insights = { compare, byLocation, batteryBuckets, byActionType, failureCauses, repeatAssets, soWhat: {} };
+const byConfigType = byActionType.map(({ action_type }) => ({
+  action_type,
+  V1: rate(actions.filter((a) => a.action_type === action_type && a.configuration_version === "V1"), (a) => a.status === "SUCCESS"),
+  V2: rate(actions.filter((a) => a.action_type === action_type && a.configuration_version === "V2"), (a) => a.status === "SUCCESS"),
+}));
+
+const insights = { compare, byConfigType, byLocation, batteryBuckets, byActionType, failureCauses, repeatAssets, soWhat: {} };
 
 const replayIds = new Set(
   readFileSync(join(dir, "replay.ndjson"), "utf8").trim().split(/\r?\n/).map((l) => JSON.parse(l).mission_id),

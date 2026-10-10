@@ -218,6 +218,8 @@ export interface Insights {
     missions: RateStat;         // succeeded = COMPLETED. V1 94.4, V2 100
     actions: RateStat;          // succeeded = SUCCESS.   V1 77.2, V2 91.1
   }>;
+  /** V1 vs V2 step success within each inspection type (same mix on both sides of the comparison). */
+  byConfigType?: Array<{ action_type: ActionType } & Record<ConfigVersion, RateStat>>;
   byLocation: Array<{ location_id: string; location_name: string; actions: RateStat; problems: number; nav_failure_pct: number | null }>;
   batteryBuckets: Array<{ label: string; min: number; max: number; actions: RateStat }>; // e.g. "<20%", "20-40%", ...
   byActionType: Array<{ action_type: ActionType; actions: RateStat }>;

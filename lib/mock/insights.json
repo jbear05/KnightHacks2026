@@ -25,6 +25,73 @@
       }
     }
   },
+  "byConfigType": [
+    {
+      "action_type": "NAVIGATION",
+      "V1": {
+        "total": 46,
+        "succeeded": 36,
+        "pct": 78.3
+      },
+      "V2": {
+        "total": 26,
+        "succeeded": 23,
+        "pct": 88.5
+      }
+    },
+    {
+      "action_type": "VISUAL_INSPECTION",
+      "V1": {
+        "total": 50,
+        "succeeded": 44,
+        "pct": 88
+      },
+      "V2": {
+        "total": 18,
+        "succeeded": 18,
+        "pct": 100
+      }
+    },
+    {
+      "action_type": "THERMAL_INSPECTION",
+      "V1": {
+        "total": 31,
+        "succeeded": 24,
+        "pct": 77.4
+      },
+      "V2": {
+        "total": 18,
+        "succeeded": 18,
+        "pct": 100
+      }
+    },
+    {
+      "action_type": "ACOUSTIC_INSPECTION",
+      "V1": {
+        "total": 28,
+        "succeeded": 19,
+        "pct": 67.9
+      },
+      "V2": {
+        "total": 15,
+        "succeeded": 11,
+        "pct": 73.3
+      }
+    },
+    {
+      "action_type": "GAUGE_READING",
+      "V1": {
+        "total": 25,
+        "succeeded": 16,
+        "pct": 64
+      },
+      "V2": {
+        "total": 13,
+        "succeeded": 12,
+        "pct": 92.3
+      }
+    }
+  ],
   "byLocation": [
     {
       "location_id": "WP01",

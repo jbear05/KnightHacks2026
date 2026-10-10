@@ -12,7 +12,8 @@ import {
   hero,
   heroLead,
   heatmapSoWhat,
-  nextWorst,
+  configTypeRows,
+  locationRankings,
   reliabilitySoWhat,
   typeBars,
 } from "./insights";
@@ -36,14 +37,19 @@ describe("Insights derivations", () => {
   });
 
   it("writes every So what sentence when Backend sends none", () => {
-    expect(compareSoWhat(i)).toBe("V2 recorded higher success: 91% versus 77%. Compare similar routes before changing configuration.");
+    expect(compareSoWhat(i)).toBe(
+      "V2 recorded higher step success: 91% (82 of 90) versus 77% (139 of 180) on V1. V2 was also higher within 5 of 5 inspection types. This is an observed association: the runs differ in route, timing and battery, so it does not show the configuration caused the difference.",
+    );
     expect(heatmapSoWhat(i)).toBe(
-      "Pipe Gallery (WP05) is the hotspot: 8 problems and 1 in 4 steps fail there, so walk it first when a tech goes out.",
+      "Pipe Gallery (WP05) recorded the most findings: 8 across 43 steps. Turbine Hall South (WP09) has the lowest step success: 14 of 22 ok (64%). Counts and failure rates rank stops differently, and neither weighs severity.",
     );
-    expect(nextWorst(i)).toBe(
-      "Next worst: Turbine Hall South (WP09), 6 problems and 64% of steps ok. Inspection Dock (WP15), 69% of steps ok.",
+    expect(batterySoWhat(i)).toBe(
+      "Below 20% battery, 3 of 11 steps succeeded (27%), versus 218 of 259 (84%) at 20% or above. Only 11 steps ran that low, so the rate is uncertain and can reflect other factors such as position in the mission or configuration. Docking before 20% is a suggested heuristic, not a measured threshold.",
     );
-    expect(batterySoWhat(i)).toBe("Only 3 of 11 steps succeeded below 20% battery. Plan to dock before reaching 20%.");
+    // No sentence claims causality, an optimal threshold, or an order to walk stops in.
+    for (const s of [compareSoWhat(i), heatmapSoWhat(i), batterySoWhat(i)]) {
+      expect(s).not.toMatch(/walk it first|hotspot|optimal|plan to dock|because of V2/i);
+    }
     expect(reliabilitySoWhat(i)).toBe(
       "Sound checks and gauge readings failed most often. Verify questionable readings before diagnosing equipment.",
     );
@@ -82,6 +88,38 @@ describe("Insights derivations", () => {
     expect(bars.map((b) => b.count)).toEqual([14, 12, 7, 6, 4, 6]);
     expect(bars[5].label).toBe("Other (noise, obstacle, blocked path)");
     expect(bars.filter((b) => b.dataQuality).map((b) => b.key)).toEqual(["READING_UNRELIABLE", "SENSOR_TIMEOUT"]);
+  });
+
+  it("ranks stops by findings and by failure rate separately, with denominators", () => {
+    expect(locationRankings(i)).toEqual({
+      byFindings: [
+        { location_id: "WP05", location_name: "Pipe Gallery", problems: 8, steps: 43 },
+        { location_id: "WP09", location_name: "Turbine Hall South", problems: 6, steps: 22 },
+        { location_id: "WP02", location_name: "Electrical Room", problems: 3, steps: 13 },
+      ],
+      byFailure: [
+        { location_id: "WP09", location_name: "Turbine Hall South", stat: { total: 22, succeeded: 14, pct: 63.6 }, pct: 64 },
+        { location_id: "WP15", location_name: "Inspection Dock", stat: { total: 16, succeeded: 11, pct: 68.8 }, pct: 69 },
+        { location_id: "WP02", location_name: "Electrical Room", stat: { total: 13, succeeded: 9, pct: 69.2 }, pct: 69 },
+      ],
+    });
+  });
+
+  it("compares V1 and V2 within each inspection type and flags small or empty groups", () => {
+    const rows = configTypeRows(i);
+    expect(rows.map((r) => [r.action_type, `${r.V1.succeeded}/${r.V1.total}`, `${r.V2.succeeded}/${r.V2.total}`, r.diff, r.small])).toEqual([
+      ["NAVIGATION", "36/46", "23/26", 10.2, false],
+      ["VISUAL_INSPECTION", "44/50", "18/18", 12, true],
+      ["THERMAL_INSPECTION", "24/31", "18/18", 22.6, true],
+      ["ACOUSTIC_INSPECTION", "19/28", "11/15", 5.4, true],
+      ["GAUGE_READING", "16/25", "12/13", 28.3, true],
+    ]);
+    // Group totals add back up to the overall comparison.
+    expect(rows.reduce((n, r) => n + r.V1.total, 0)).toBe(i.compare.V1.actions.total);
+    expect(rows.reduce((n, r) => n + r.V2.total, 0)).toBe(i.compare.V2.actions.total);
+    const empty = configTypeRows({ ...i, byConfigType: [{ action_type: "GAUGE_READING", V1: { total: 3, succeeded: 2, pct: 66.7 }, V2: { total: 0, succeeded: 0, pct: 0 } }] });
+    expect(empty[0]).toMatchObject({ diff: null, small: true });
+    expect(configTypeRows({ ...i, byConfigType: undefined })).toEqual([]);
   });
 
   it("phrases failure share", () => {
