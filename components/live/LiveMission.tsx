@@ -10,7 +10,7 @@ import { SERIOUS } from "@/lib/report";
 import type { MissionDetail } from "@/lib/types";
 import Image from "next/image";
 // Swap for Map & Sim's <FacilityMap /> once map-sim is merged; the props are the contract's.
-import { FacilityMapPlaceholder as FacilityMap, type MapLayers } from "./FacilityMapPlaceholder";
+import { FacilityMap, type MapLayers } from "@/components/map/FacilityMap";
 import { ReplayBar } from "./ReplayBar";
 import { RightRail } from "./RightRail";
 import { useReplay } from "./useReplay";
