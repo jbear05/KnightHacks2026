@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Walkable Grid Editor</title>
+<!--
+  Fix the walkable grid by painting cells on the floor plan.
+  Run from the project root:   npm run sandbox
+  Open the "Grid editor" URL it prints.
+  Left-drag = walkable, right-drag (or hold Shift) = blocked.
+  "Download map.json" -> replace data/map.json with the downloaded file.
+-->
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #111; color: #eee; }
+  header { display: flex; gap: 16px; align-items: center; padding: 8px 12px; background: #1d1d1d; flex-wrap: wrap; }
+  #wrap { overflow: auto; padding: 12px; }
+  canvas { cursor: crosshair; image-rendering: pixelated; }
+  button { padding: 6px 12px; }
+  .hint { color: #aaa; }
+</style>
+</head>
+<body>
+<header>
+  <label>Brush <input id="brush" type="range" min="1" max="6" value="2"> <span id="brushv">2</span> cells</label>
+  <label>Zoom <select id="zoom"><option>1</option><option selected>2</option><option>3</option></select></label>
+  <label><input id="showGrid" type="checkbox" checked> show grid</label>
+  <button id="undo">Undo</button>
+  <button id="dl">Download map.json</button>
+  <span class="hint">Left-drag: walkable · Right-drag / Shift: blocked</span>
+  <span id="stat" class="hint"></span>
+</header>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<script>
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let map, img, rows, Z = 2, painting = null, history = [];
+
+Promise.all([
+  fetch('../data/map.json').then(r => r.json()),
+  new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = '../public/floorplan.png'; })
+]).then(([m, i]) => { map = m; img = i; rows = m.grid.rows.map(r => r.split('')); resize(); });
+
+function resize() { cv.width = map.width * Z; cv.height = map.height * Z; draw(); }
+
+function draw() {
+  const c = map.grid.cell * Z;
+  ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  for (let r = 0; r < rows.length; r++) for (let k = 0; k < rows[r].length; k++) {
+    if (rows[r][k] === '#') { ctx.fillStyle = 'rgba(0,255,120,0.32)'; ctx.fillRect(k * c, r * c, c, c); }
+  }
+  if (document.getElementById('showGrid').checked) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.beginPath();
+    for (let x = 0; x <= cv.width; x += c) { ctx.moveTo(x, 0); ctx.lineTo(x, cv.height); }
+    for (let y = 0; y <= cv.height; y += c) { ctx.moveTo(0, y); ctx.lineTo(cv.width, y); }
+    ctx.stroke();
+  }
+  for (const s of map.stops) {
+    ctx.fillStyle = '#ff2d2d'; ctx.beginPath(); ctx.arc(s.x * Z, s.y * Z, 4 * Z / 2 + 2, 0, 7); ctx.fill();
+  }
+  for (const k of ['F1', 'F2']) {
+    const p = map.stairs[k]; ctx.strokeStyle = '#ffe600'; ctx.lineWidth = 2;
+    ctx.strokeRect(p.x * Z - 6, p.y * Z - 6, 12, 12);
+  }
+  // warn if a stop or stairs end is not on a walkable cell
+  const off = [...map.stops, map.stairs.F1, map.stairs.F2].filter(p =>
+    rows[Math.floor(p.y / map.grid.cell)][Math.floor(p.x / map.grid.cell)] !== '#');
+  document.getElementById('stat').textContent = off.length
+    ? '⚠ off-grid: ' + off.map(p => p.id || 'stairs F' + p.floor).join(', ') : '✓ all stops on walkable cells';
+}
+
+function paintAt(e) {
+  const b = cv.getBoundingClientRect(), c = map.grid.cell * Z, n = +document.getElementById('brush').value;
+  const k0 = Math.floor((e.clientX - b.left) / c), r0 = Math.floor((e.clientY - b.top) / c);
+  for (let r = r0; r < r0 + n; r++) for (let k = k0; k < k0 + n; k++)
+    if (rows[r] && rows[r][k] !== undefined) rows[r][k] = painting;
+  draw();
+}
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('mousedown', e => {
+  history.push(rows.map(r => r.slice())); if (history.length > 50) history.shift();
+  painting = (e.button === 2 || e.shiftKey) ? '.' : '#'; paintAt(e);
+});
+cv.addEventListener('mousemove', e => { if (painting) paintAt(e); });
+window.addEventListener('mouseup', () => painting = null);
+document.getElementById('undo').onclick = () => { if (history.length) { rows = history.pop(); draw(); } };
+document.getElementById('zoom').onchange = e => { Z = +e.target.value; resize(); };
+document.getElementById('showGrid').onchange = draw;
+document.getElementById('brush').oninput = e => document.getElementById('brushv').textContent = e.target.value;
+document.getElementById('dl').onclick = () => {
+  map.grid.rows = rows.map(r => r.join(''));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(map, null, 1)], { type: 'application/json' }));
+  a.download = 'map.json'; a.click();
+};
+</script>
+</body>
+</html>
