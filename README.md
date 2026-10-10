@@ -8,10 +8,11 @@ KnightHacks 2026 · NextEra Energy SPOT Management Dashboard track. An operator 
 npm install
 npm run dev        # http://localhost:3000 (Mission Report: /missions/M014)
 npm run lint
+npm test           # vitest: decision saves and API URL resolution
 npm run build
 ```
 
-The frontend reads data only through `lib/api.ts`. Until Backend's API is live it uses the fixtures in `lib/mock/` (`NEXT_PUBLIC_USE_MOCK` defaults to mock; set it to `false` and `NEXT_PUBLIC_API_BASE` to the API origin to switch).
+The frontend reads data only through `lib/api.ts`. Until Backend's API is live it uses the fixtures in `lib/mock/` (`NEXT_PUBLIC_USE_MOCK` defaults to mock; set it to `false` to use the real API. Requests go to `NEXT_PUBLIC_API_BASE` if set, otherwise to the app's own origin: `VERCEL_URL` on Vercel, `http://localhost:$PORT` locally).
 
 ## Layout
 

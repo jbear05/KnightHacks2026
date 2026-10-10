@@ -5,7 +5,21 @@ import type { ApiError, Decision, MissionDetail, Problem } from "./types";
 
 // Mock until Backend's API is live; set NEXT_PUBLIC_USE_MOCK=false to use it.
 export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
+
+/**
+ * Absolute URL for an API path. In the browser a relative path is fine (same origin).
+ * Server components run in Node, where fetch needs an absolute URL, so they use
+ * NEXT_PUBLIC_API_BASE, else this deployment's own origin (Vercel's VERCEL_URL),
+ * else the local Next server.
+ */
+export function apiUrl(path: string): string {
+  const base = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/+$/, "");
+  if (base || typeof window !== "undefined") return `${base}${path}`;
+  const origin = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : `http://localhost:${process.env.PORT ?? 3000}`;
+  return `${origin}${path}`;
+}
 
 const MOCK_MISSIONS: Record<string, MissionDetail> = {
   M014: missionM014 as MissionDetail,
@@ -18,7 +32,7 @@ export class ApiRequestError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(apiUrl(path), {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
     cache: "no-store",
