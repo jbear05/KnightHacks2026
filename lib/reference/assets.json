@@ -1,0 +1,142 @@
+[
+  {
+    "asset_id": "HX-201",
+    "asset_name": "Heat Exchanger 01",
+    "asset_type": "Heat Exchanger",
+    "location_id": "WP05",
+    "criticality": "LOW"
+  },
+  {
+    "asset_id": "HX-202",
+    "asset_name": "Heat Exchanger 02",
+    "asset_type": "Heat Exchanger",
+    "location_id": "WP05",
+    "criticality": "CRITICAL"
+  },
+  {
+    "asset_id": "PANEL-203",
+    "asset_name": "Electrical Panel 03",
+    "asset_type": "Electrical Panel",
+    "location_id": "WP05",
+    "criticality": "MEDIUM"
+  },
+  {
+    "asset_id": "HX-204",
+    "asset_name": "Heat Exchanger 04",
+    "asset_type": "Heat Exchanger",
+    "location_id": "WP05",
+    "criticality": "MEDIUM"
+  },
+  {
+    "asset_id": "PUMP-205",
+    "asset_name": "Pump 05",
+    "asset_type": "Pump",
+    "location_id": "WP10",
+    "criticality": "MEDIUM"
+  },
+  {
+    "asset_id": "MOTOR-206",
+    "asset_name": "Motor 06",
+    "asset_type": "Motor",
+    "location_id": "WP14",
+    "criticality": "LOW"
+  },
+  {
+    "asset_id": "VALVE-207",
+    "asset_name": "Valve 07",
+    "asset_type": "Valve",
+    "location_id": "WP12",
+    "criticality": "HIGH"
+  },
+  {
+    "asset_id": "HX-208",
+    "asset_name": "Heat Exchanger 08",
+    "asset_type": "Heat Exchanger",
+    "location_id": "WP03",
+    "criticality": "MEDIUM"
+  },
+  {
+    "asset_id": "GAUGE-209",
+    "asset_name": "Pressure Gauge 09",
+    "asset_type": "Pressure Gauge",
+    "location_id": "WP14",
+    "criticality": "HIGH"
+  },
+  {
+    "asset_id": "HX-210",
+    "asset_name": "Heat Exchanger 10",
+    "asset_type": "Heat Exchanger",
+    "location_id": "WP11",
+    "criticality": "MEDIUM"
+  },
+  {
+    "asset_id": "PANEL-211",
+    "asset_name": "Electrical Panel 11",
+    "asset_type": "Electrical Panel",
+    "location_id": "WP09",
+    "criticality": "MEDIUM"
+  },
+  {
+    "asset_id": "PANEL-212",
+    "asset_name": "Electrical Panel 12",
+    "asset_type": "Electrical Panel",
+    "location_id": "WP09",
+    "criticality": "HIGH"
+  },
+  {
+    "asset_id": "HX-213",
+    "asset_name": "Heat Exchanger 13",
+    "asset_type": "Heat Exchanger",
+    "location_id": "WP13",
+    "criticality": "HIGH"
+  },
+  {
+    "asset_id": "COMP-214",
+    "asset_name": "Compressor 14",
+    "asset_type": "Compressor",
+    "location_id": "WP04",
+    "criticality": "MEDIUM"
+  },
+  {
+    "asset_id": "PANEL-215",
+    "asset_name": "Electrical Panel 15",
+    "asset_type": "Electrical Panel",
+    "location_id": "WP01",
+    "criticality": "LOW"
+  },
+  {
+    "asset_id": "HX-216",
+    "asset_name": "Heat Exchanger 16",
+    "asset_type": "Heat Exchanger",
+    "location_id": "WP13",
+    "criticality": "MEDIUM"
+  },
+  {
+    "asset_id": "HX-217",
+    "asset_name": "Heat Exchanger 17",
+    "asset_type": "Heat Exchanger",
+    "location_id": "WP06",
+    "criticality": "CRITICAL"
+  },
+  {
+    "asset_id": "PANEL-218",
+    "asset_name": "Electrical Panel 18",
+    "asset_type": "Electrical Panel",
+    "location_id": "WP12",
+    "criticality": "MEDIUM"
+  },
+  {
+    "asset_id": "HX-219",
+    "asset_name": "Heat Exchanger 19",
+    "asset_type": "Heat Exchanger",
+    "location_id": "WP13",
+    "criticality": "MEDIUM"
+  },
+  {
+    "asset_id": "PUMP-220",
+    "asset_name": "Pump 20",
+    "asset_type": "Pump",
+    "location_id": "WP14",
+    "criticality": "MEDIUM"
+  }
+]
