@@ -18,6 +18,8 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // The backend is a separate CommonJS Node app with its own package.json.
+      "backend/**",
     ],
   },
 ];
