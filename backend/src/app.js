@@ -45,23 +45,6 @@ app.get("/api/health", async (req, res) => {
     }
 });
 
-// Temporary endpoint to test the problems view
-app.get("/api/problems", async (req, res) => {
-    try {
-        const result = await pool.query(
-            "SELECT * FROM problems ORDER BY priority DESC"
-        );
-
-        res.json(result.rows);
-
-    } catch (error) {
-        console.error("Error fetching problems:", error);
-
-        res.status(500).json({
-            error: "Failed to fetch problems"
-        });
-    }
-});
 
 // Handle unknown routes
 app.use("/api/missions", missionRoutes);

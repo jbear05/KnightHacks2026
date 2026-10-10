@@ -172,12 +172,15 @@ router.get("/", async (req, res) => {
 
                 for (const problem of matchingProblems) {
                     sendEvent(res, {
-                        event_id: `PROBLEM-${problem.anomaly_id}`,
-                        mission_id: missionId,
-                        timestamp: event.timestamp,
-                        event_type: "PROBLEM_FOUND",
-                        details: problem
-                    });
+                    event_id: `P${problem.anomaly_id}`,
+                    mission_id: missionId,
+                    timestamp: event.timestamp,
+                    event_type: "PROBLEM_FOUND",
+                    details: {
+                        action_id: actionId,
+                        problem: problem
+                    }
+                });
                 }
             }
 

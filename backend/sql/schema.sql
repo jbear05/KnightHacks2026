@@ -98,4 +98,15 @@ CREATE TABLE operator_decisions (
 );
 
 CREATE INDEX ON actions (mission_id);
-... (30 lines left)
+
+CREATE INDEX ON actions (location_id);
+
+CREATE INDEX ON readings (asset_id, timestamp);
+
+CREATE INDEX ON anomalies (mission_id);
+
+CREATE INDEX ON anomalies (asset_id);
+
+CREATE INDEX ON replay_events (mission_id, timestamp);
+
+CREATE INDEX ON operator_decisions (anomaly_id, created_at DESC);
