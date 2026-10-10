@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FacilityMapHeatmapProps, FacilityMapLiveProps, LocationId, SpotStatus } from "@/contracts/facility-map-props";
 import { LOCATIONS } from "@/lib/reference";
-import { msOf, START_LOCATION } from "@/lib/replay";
+import { msOf, START_LOCATION, stepAt } from "@/lib/replay";
 import { DOCK_ID, dockWalk, fromStop } from "@/lib/scenarios";
 import type { Action } from "@/lib/types";
 import mapData from "@/map-sim/data/map.json";
@@ -158,27 +158,22 @@ type Leg = { from: LocationId; to: LocationId; kind: "ok" | "failed" | "next" };
 
 /** Where SPOT is at mission-clock `t`, given the events so far (re-derived, so seeking just works). */
 function spotAt(plan: Action[], doneIds: Set<string>, t: number, startTs: number, skipped: ReadonlySet<string>) {
-  const next = plan.findIndex((a) => !doneIds.has(a.action_id));
-  if (next === -1) {
+  const s = stepAt(plan, doneIds, t, startTs);
+  if (!s) {
     const here = fromStop(plan, plan.length, skipped);
     return { index: plan.length, from: here, to: here, progress: 1, inspecting: false };
   }
-  const a = plan[next];
-  const prev = plan[next - 1];
-  const from = fromStop(plan, next, skipped);
+  const index = s.step - 1;
+  const from = fromStop(plan, index, skipped);
   // Too hot (what-if): SPOT stays where it is for this step.
-  if (skipped.has(a.action_id)) return { index: next, from, to: from, progress: 0, inspecting: false };
-  const leave = prev ? msOf(prev.timestamp) : startTs;
-  const arrive = Math.max(leave, msOf(a.timestamp) - (a.duration_sec ?? 0) * 1000);
-  const progress = t >= arrive ? 1 : Math.max(0, (t - leave) / Math.max(1, arrive - leave));
-  return { index: next, from, to: a.location_id, progress, inspecting: t >= arrive };
+  if (skipped.has(s.action.action_id)) return { index, from, to: from, progress: 0, inspecting: false };
+  return { index, from, to: s.action.location_id, progress: s.progress, inspecting: s.phase === "inspecting" };
 }
 
 function LiveFacilityMap({
   events,
   plan = [],
-  speed,
-  playing,
+  clock,
   alertLocationIds = [],
   alertLabels = {},
   selectedLocationId,
@@ -198,26 +193,8 @@ function LiveFacilityMap({
   const latestTs = latest ? msOf(latest.timestamp) : sorted.length ? msOf(sorted[0].timestamp) : 0;
   const startTs = events[0]?.event_type === "MISSION_STARTED" ? msOf(events[0].timestamp) : latestTs;
 
-  // The map's own clock (contract: advance from the latest event at `speed`, never past the next action).
-  const [t, setT] = useState(latestTs);
-  const anchor = useRef({ ts: latestTs, real: 0 });
-  useEffect(() => {
-    anchor.current = { ts: latestTs, real: performance.now() };
-    setT(latestTs);
-  }, [latestTs]);
-  useEffect(() => {
-    if (!playing) return;
-    anchor.current = { ts: t, real: performance.now() };
-    let frame = 0;
-    const tick = (now: number) => {
-      setT(anchor.current.ts + (now - anchor.current.real) * speed);
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-    // Re-anchor only when play state or speed changes; `t` is read once on purpose.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, speed]);
+  // useReplay() owns playback time; the map only draws SPOT where that clock puts it.
+  const t = clock ?? latestTs;
 
   const results = useMemo(() => {
     const r = new Map<string, boolean>();
@@ -229,9 +206,7 @@ function LiveFacilityMap({
   }, [events]);
 
   const ended = latest?.event_type === "MISSION_COMPLETED";
-  const nextTs = sorted.find((a) => !results.has(a.action_id));
-  const clamped = Math.min(t, nextTs ? msOf(nextTs.timestamp) : latestTs);
-  const spot = spotAt(sorted, new Set(results.keys()), clamped, startTs, skipped);
+  const spot = spotAt(sorted, new Set(results.keys()), t, startTs, skipped);
   const walks = useMemo(
     () => sorted.map((act, i) => (skipped.has(act.action_id) ? [] : walkLegs(fromStop(sorted, i, skipped), act.location_id, base, obstacle))),
     [sorted, base, obstacle, skipped],
@@ -331,7 +306,12 @@ function LiveFacilityMap({
   const showFindings = layers !== "route";
 
   return (
-    <div className={`relative ${className}`}>
+    <div
+      className={`relative ${className}`}
+      data-spot-to={spot.to}
+      data-spot-mode={spotMode}
+      data-spot-xy={`${spotXY.x.toFixed(1)},${spotXY.y.toFixed(1)}`}
+    >
     <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="group" aria-label="Facility map, floors 1 and 2">
       {base === "photo" ? (
         <image href={floorplan.src} x={PHOTO.ox} y={PHOTO.oy} width={MAP.width * PHOTO.sx} height={MAP.height * PHOTO.sy} preserveAspectRatio="none" />

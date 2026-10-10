@@ -120,8 +120,7 @@ export function LiveMission({ mission, at, scenario: initial = NO_SCENARIO }: { 
               mode="live"
               events={replay.events}
               plan={plan}
-              speed={replay.speed}
-              playing={replay.playing}
+              clock={replay.clock}
               floor="both"
               alertLocationIds={serious.map((p) => p.location_id)}
               alertLabels={alertLabels}
@@ -144,6 +143,13 @@ export function LiveMission({ mission, at, scenario: initial = NO_SCENARIO }: { 
                 </li>
               ))}
             </ul>
+            <p className="text-fg-muted type-body-sm">
+              Reconstructed replay: rebuilt from this mission&apos;s recorded actions, timestamps and findings.{" "}
+              {mission.in_replay
+                ? "The kit's original replay log also covers this mission; walking paths between stops are simulated."
+                : "The kit's original replay log has no events for this mission, so this playback comes from the mission records only."}{" "}
+              Walks follow the route grid around walls; SPOT hops between the two stairwells.
+            </p>
             <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 type-body-sm" aria-label="Map legend">
               <Legend src="/figma/step-success-sm.svg" label="Succeeded step" />
               <Legend src="/figma/step-failed-sm.svg" label="Failed step" />
@@ -187,7 +193,7 @@ function LiveTopBar({
   if (!slot) return null;
   // "Autowalk Inspection Route 14" -> "Autowalk Route 14", as in the Figma chip.
   const name = mission.mission_name.replace(/\bInspection\s+/, "");
-  const state = status === "playing" ? `Replaying ${speed}×` : status === "paused" ? "Paused" : "Replay finished";
+  const state = status === "playing" ? `Reconstructed replay ${speed}×` : status === "paused" ? "Replay paused" : "Replay finished";
   return createPortal(
     <>
       <span className="hidden truncate rounded-pill border-[1.5px] border-line-strong px-2.5 py-1.5 text-fg-muted type-mono sm:inline">
