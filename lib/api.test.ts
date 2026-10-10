@@ -38,6 +38,28 @@ describe("getAsset in mock mode", () => {
   });
 });
 
+describe("getMission in mock mode", () => {
+  it("opens every mission the index and asset histories link to, not just M014", async () => {
+    const { getMission, getMissions, getAsset } = await loadApi({ NEXT_PUBLIC_USE_MOCK: "true" });
+    const linked = new Set((await getMissions()).map((m) => m.mission_id));
+    for (const id of ["PANEL-212", "HX-217", "PUMP-220"]) {
+      const a = await getAsset(id);
+      for (const x of [...a!.problems, ...(a!.actions ?? [])]) linked.add(x.mission_id);
+    }
+    expect(linked.size).toBe(27);
+    for (const id of linked) await expect(getMission(id)).resolves.toMatchObject({ mission_id: id });
+    await expect(getMission("M999")).resolves.toBeNull();
+    await expect(getMission("toString")).resolves.toBeNull();
+  });
+
+  it("serves M014 identical to the hand-checked fixture", async () => {
+    const { getMission } = await loadApi({ NEXT_PUBLIC_USE_MOCK: "true" });
+    // The editorial summary and the newer awaiting_review field are the only differences.
+    const m = { ...(await getMission("M014"))!, summary: null, awaiting_review: undefined };
+    expect(m).toEqual({ ...mission, summary: null, awaiting_review: undefined });
+  });
+});
+
 describe("getMission on the server with the real API", () => {
   it("uses the local Next server when no API base is set", async () => {
     const fetch = mockFetch();
