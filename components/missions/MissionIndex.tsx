@@ -108,7 +108,7 @@ export function MissionIndex({ missions, initial }: { missions: MissionSummary[]
           <Button onClick={() => setF({ ...NO_FILTERS, sort: f.sort })}>Clear filters</Button>
         </div>
       ) : (
-        <div role="region" aria-label="Missions" tabIndex={0} className="overflow-x-auto bg-surface sticker">
+        <div role="region" aria-label="Missions" tabIndex={0} className="relative overflow-x-auto bg-surface sticker">
           <table className="w-full min-w-[860px] border-collapse text-left">
             <caption className="sr-only">
               Missions, {SORT_LABEL[f.sort].toLowerCase()}. Completed missions with failed steps or serious findings are marked “with issues”.

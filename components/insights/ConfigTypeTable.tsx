@@ -9,7 +9,7 @@ export function ConfigTypeTable({ insights }: { insights: Insights }) {
   }
   return (
     <div className="flex flex-col gap-2">
-      <div role="region" aria-label="V1 versus V2 by inspection type" tabIndex={0} className="overflow-x-auto">
+      <div role="region" aria-label="V1 versus V2 by inspection type" tabIndex={0} className="relative overflow-x-auto">
         <table className="w-full min-w-[520px] border-collapse text-left">
           <caption className="sr-only">Steps that succeeded on V1 and V2, by inspection type</caption>
           <thead>
