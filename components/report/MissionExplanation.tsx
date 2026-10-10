@@ -28,7 +28,7 @@ export function MissionExplanation({ mission: m }: { mission: MissionDetail }) {
       const result = await summarizeMission(m);
       setSummary(result.text);
       setSummarySource(result.source);
-      setError(result.source === "records" ? "The model added a number or identifier not in the mission records. Showing a record-based summary instead." : null);
+      setError(result.source === "records" ? "The model's numbers or identifiers could not be verified against this mission's records. Showing a record-based summary instead." : null);
     } catch (cause) {
       setError(cause instanceof Error ? `Summary generation failed: ${cause.message}` : "Summary generation failed.");
     } finally {
