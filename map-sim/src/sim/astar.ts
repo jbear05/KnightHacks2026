@@ -38,6 +38,22 @@ export class NavGrid {
     });
   }
 
+  /**
+   * A copy of this grid with extra blocked areas, e.g. an obstacle SPOT just
+   * found. Rects are in image pixels; every cell the rect touches is blocked,
+   * so routes never graze it. The original grid is not changed.
+   */
+  withBlocked(rects: { x0: number; y0: number; x1: number; y1: number }[]): NavGrid {
+    const copy = new NavGrid(this.map);
+    copy.walk.set(this.walk);
+    for (const b of rects) {
+      const c0 = Math.max(0, Math.floor(b.x0 / this.cell)), c1 = Math.min(this.cols - 1, Math.floor(b.x1 / this.cell));
+      const r0 = Math.max(0, Math.floor(b.y0 / this.cell)), r1 = Math.min(this.rows - 1, Math.floor(b.y1 / this.cell));
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) copy.walk[r * this.cols + c] = 0;
+    }
+    return copy;
+  }
+
   isWalkable(c: number, r: number): boolean {
     return c >= 0 && r >= 0 && c < this.cols && r < this.rows && this.walk[r * this.cols + c] === 1;
   }
