@@ -41,7 +41,10 @@ stops, uses the stairs only when the floor changes, and is as short as an
 independent Dijkstra search. Small hand-made grids check the edge cases
 (walls, diagonal corners, unreachable targets, same start and end).
 
-Click a stop to see its components: health, estimated life left and why.
+Click a stop to open a card next to it with its components: health, estimated
+life left and the top reason (click a row for all reasons). The card picks the
+nearest spot that doesn't cover other stops, so they stay clickable; Esc, ×
+or a click on empty map closes it.
 Tick "click to route" to click two stops (or any floor point) and watch SPOT
 walk between them instead. Pick a mission and press "Replay mission" to watch SPOT do its real
 steps from the data, with alerts as they happen. Tick "Heat wave" and/or
