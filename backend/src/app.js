@@ -2,6 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const pool = require("./db/pool");
 
+const missionRoutes = require("./routes/missions");
+const locationRoutes = require("./routes/locations");
+
 const app = express();
 
 // Middleware
@@ -57,6 +60,9 @@ app.get("/api/problems", async (req, res) => {
 });
 
 // Handle unknown routes
+app.use("/api/missions", missionRoutes);
+app.use("/api/locations", locationRoutes);
+
 app.use((req, res) => {
     res.status(404).json({
         error: "Endpoint not found"
