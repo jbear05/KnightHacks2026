@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import argparse
 import csv
+import os
 from collections import Counter, defaultdict
 from pathlib import Path
 
 
-DATA_DIR = Path("/Users/rayanh/Downloads/SPOT_KnightHacks_Challenge_Kit Part One/02_DATA")
+DEFAULT_DATA_DIR = Path.home() / "Downloads" / "SPOT_KnightHacks_Challenge_Kit Part One" / "02_DATA"
 OUTPUT_PATH = Path(__file__).resolve().parent / "mission_summary_step1.csv"
 
 
@@ -20,13 +22,17 @@ def normalize_bool(value):
     return str(value).strip().lower() in {"true", "1", "yes", "y"}
 
 
-def main():
-    missions = read_csv(DATA_DIR / "missions.csv")
-    actions = read_csv(DATA_DIR / "actions.csv")
-    readings = read_csv(DATA_DIR / "readings.csv")
-    anomalies = read_csv(DATA_DIR / "anomalies.csv")
-    assets = read_csv(DATA_DIR / "assets.csv")
-    locations = read_csv(DATA_DIR / "locations.csv")
+def main(data_dir: Path):
+    required_files = ("missions.csv", "actions.csv", "readings.csv", "anomalies.csv")
+    missing_files = [name for name in required_files if not (data_dir / name).is_file()]
+    if missing_files:
+        missing = ", ".join(missing_files)
+        raise FileNotFoundError(f"Missing required CSV files in {data_dir}: {missing}")
+
+    missions = read_csv(data_dir / "missions.csv")
+    actions = read_csv(data_dir / "actions.csv")
+    readings = read_csv(data_dir / "readings.csv")
+    anomalies = read_csv(data_dir / "anomalies.csv")
 
     actions_by_mission = defaultdict(list)
     for action in actions:
@@ -36,14 +42,9 @@ def main():
     for reading in readings:
         readings_by_action[reading["action_id"]].append(reading)
 
-    anomalies_by_action = defaultdict(list)
     anomalies_by_mission = defaultdict(list)
     for anomaly in anomalies:
-        anomalies_by_action[anomaly["action_id"]].append(anomaly)
         anomalies_by_mission[anomaly["mission_id"]].append(anomaly)
-
-    asset_by_id = {row["asset_id"]: row for row in assets}
-    location_by_id = {row["location_id"]: row for row in locations}
 
     mission_rows = []
 
@@ -58,19 +59,15 @@ def main():
         if total_action_count > 0:
             success_rate = round(((total_action_count - failed_action_count) / total_action_count) * 100, 2)
 
-        all_readings = []
         questionable_readings = 0
-        action_type_counts = Counter()
         location_failures = Counter()
         asset_failures = Counter()
 
         for action in mission_actions:
-            action_type_counts[action["action_type"]] += 1
             if action["status"] == "FAILED":
                 location_failures[action["location_id"]] += 1
                 asset_failures[action["asset_id"]] += 1
             for reading in readings_by_action.get(action["action_id"], []):
-                all_readings.append(reading)
                 if str(reading.get("quality", "")).strip().upper() == "QUESTIONABLE":
                     questionable_readings += 1
 
@@ -174,4 +171,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Summarize mission risk from the challenge-kit CSV files.")
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path(os.environ.get("SPOT_DATA_DIR", str(DEFAULT_DATA_DIR))).expanduser(),
+        help="Directory containing missions.csv, actions.csv, readings.csv, and anomalies.csv.",
+    )
+    main(parser.parse_args().data_dir)
