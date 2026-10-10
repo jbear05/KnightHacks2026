@@ -187,20 +187,20 @@ export function actionAlerts(action: MissionAction, readings: MissionReading[], 
         const realLevel = r.value >= LIMITS.equipmentCriticalC ? "critical" : r.value >= LIMITS.equipmentWarnC ? "warning" : null;
         const simulated = level !== realLevel;
         const limit = level === "critical" ? LIMITS.equipmentCriticalC : LIMITS.equipmentWarnC;
+        const doubt = r.quality === "QUESTIONABLE" ? " The reading is marked QUESTIONABLE, so confirm it before acting." : "";
         out.push({ ...base, id: `temp-${id}`, level, simulated,
           title: level === "critical" ? `Equipment overheating: ${r.asset_id}` : `Equipment running hot: ${r.asset_id}`,
-          detail: simulated
+          detail: (simulated
             ? `${r.asset_id} at ${where} would be at ${c}°C (reading ${r.value}°C + ${added}°C from the heat wave). Above ${limit}°C (our threshold).`
-            : `${r.asset_id} at ${where} read ${r.value}°C. Above ${limit}°C (our threshold; the data has no limits).` });
-        continue;
+            : `${r.asset_id} at ${where} read ${r.value}°C. Above ${limit}°C (our threshold; the data has no limits).`) + doubt });
       }
     }
     if (r.measurement_type === "LOCALIZATION_CONFIDENCE_PCT" && r.value < LIMITS.lowLocalizationPct) {
       out.push({ ...base, id: `loc-${id}`, level: "warning", simulated: false,
         title: `SPOT unsure of its position at ${where}`,
         detail: `Localization confidence ${r.value}%. Below ${LIMITS.lowLocalizationPct}% (our threshold), routes and readings here are less trustworthy.` });
-      continue;
     }
+    // checked on its own, so a hot or low-confidence reading never hides that it is questionable
     if (r.quality === "QUESTIONABLE") {
       out.push({ ...base, id: `q-${id}`, level: "info", simulated: false,
         title: `Questionable reading: ${r.asset_id}`,

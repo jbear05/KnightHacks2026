@@ -121,9 +121,8 @@
 <script type="module">
 import {
   NavGrid, pointAlong, polylineLength, SpotAnimator, drawSpot, headingAlong,
-  missionActions, missionProgress, ambientC, heatWaveExtraC, heatAlert, dockChargerAlert,
-  actionAlerts, obstacleOnApproach, distToRect, dockObstacleAlert, LIMITS,
-  componentHealth, componentsAt, remainingWithHeat, lifeAlert, formatLife, LIFE,
+  missionActions, ambientC, heatWaveExtraC, obstacleOnApproach, distToRect, dockObstacleAlert, LIMITS,
+  componentHealth, componentsAt, remainingWithHeat, formatLife, LIFE, MissionRun,
 } from './sim.js';
 
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
@@ -158,8 +157,9 @@ const animator = new SpotAnimator(-Math.PI / 2);
 animator.reset(spot.x * S, spot.y * S);
 
 // mission replay
-let step = null;                    // the action being worked on: {act, i, n, prog}
-let alerts = [], seenAlerts = new Set(), banner = null, highlight = null;
+let run = null;                     // MissionRun: current step, mission progress, alert feed (src/sim/replay.ts)
+let banner = null, highlight = null;
+const currentStep = () => run?.step ?? null;
 let obstacle = null, obstacleKnown = false, navBlocked = null;
 const heatOn = () => ($('heat').checked ? +$('heatC').value : 0);
 const navNow = () => (obstacleKnown ? (navBlocked ??= nav.withBlocked([obstacle])) : nav);
@@ -167,7 +167,7 @@ const navNow = () => (obstacleKnown ? (navBlocked ??= nav.withBlocked([obstacle]
 /**
  * The animation is a queue of steps, played one after another. High-level steps
  * are expanded when they start, so routes use what SPOT knows at that moment:
- *   {kind:'action', act, i, n, prog}  one row of actions.csv: heat check, go, inspect, alerts
+ *   {kind:'action', i}                one row of actions.csv: heat check, go, inspect, alerts
  *   {kind:'goto',   to, stopShort}    plan a route now and queue its walk/stairs
  *   {kind:'call',   fn}               run code (raise alerts, log)
  *   {kind:'walk',   pts, len, upTo, watch?}  walk a polyline; `watch` = obstacle to notice
@@ -209,26 +209,27 @@ function walkSegs(route, stopShort, label, goal, watch = null) {
 // ---------------------------------------------------------------- mission replay
 function replayMission(id) {
   resetAll();
-  const acts = missionActions(missions, id);
+  run = new MissionRun(missions, health, byId, DOCK, id);
+  const acts = run.actions;
   spot = { ...byId.WP01 }; animator.reset(spot.x * S, spot.y * S, -Math.PI / 2);   // contract: missions start at WP01
   const sim = [heatOn() && `heat wave +${heatOn()}°C`, $('obstacle').checked && 'obstacle at the dock'].filter(Boolean);
   log(`▶ ${id} (${acts[0].scenario.toLowerCase()}, ${acts.length} steps)${sim.length ? '; simulating ' + sim.join(' + ') : ''}`);
-  acts.forEach((act, i) => queue.push({ kind: 'action', act, i, n: acts.length, prog: missionProgress(acts, act) }));
+  acts.forEach((_, i) => queue.push({ kind: 'action', i }));
   queue.push({ kind: 'call', fn: () => {
-    const c = alerts.filter(a => a.level === 'critical').length, w = alerts.filter(a => a.level === 'warning').length;
+    run.finish();                    // progress stays at 1: heat labels and the card keep the end-of-mission heat
+    const c = run.feed.count('critical'), w = run.feed.count('warning');
     log(`■ ${id} finished: ${c} critical, ${w} warnings`, c ? 'bad' : 'ok');
-    step = null;
+    renderComponents(true);
   } });
 }
 
-function startAction({ act, i, n, prog }) {
-  step = { act, i, n, prog };
+function startAction({ i }) {
+  const heat = heatOn();             // read once, so this step's checks and alerts agree
+  const { step, skip, raised } = run.beginAction(i, heat);
+  const act = step.act, st = byId[act.location_id];
+  showRaised(raised);
   renderComponents();
-  const st = byId[act.location_id], heat = heatOn();
-  raise(dockChargerAlert(DOCK, prog, heat));
-  const hot = heatAlert(st, prog, heat, act.action_id);
-  raise(hot);
-  if (hot?.level === 'critical') {
+  if (skip) {
     log(`⤼ ${act.action_id} skipped: ${st.name} too hot`, 'bad');
     queue.unshift({ kind: 'pause', mode: 'fail', dur: 1.2 });
     return;
@@ -239,9 +240,7 @@ function startAction({ act, i, n, prog }) {
     { kind: 'goto', to: st, stopShort: failedNav ? 0.7 : 1, color: COLORS[i % COLORS.length], actionId: act.action_id },
     { kind: 'pause', mode: act.status === 'FAILED' ? 'fail' : 'inspect', dur: act.status === 'FAILED' ? Math.max(1.6, dur) : dur, actionId: act.action_id },
     { kind: 'call', actionId: act.action_id, fn: () => {
-      for (const a of actionAlerts(act, missions.readings, st, heatWaveExtraC(prog, heat))) raise(a);
-      const h = health.get(act.asset_id);
-      if (h && act.action_type !== 'NAVIGATION') raise(lifeAlert(h, st.name, st.id, act.action_id, heatWaveExtraC(prog, heat)));
+      showRaised(run.completeAction(i, heat));
       selectStop(st);
       log(`${act.status === 'FAILED' ? '⚠' : '•'} ${act.action_id} ${st.id} ${act.action_type.toLowerCase().replace(/_/g, ' ')}: ${act.status}`,
           act.status === 'FAILED' ? 'bad' : '');
@@ -255,9 +254,10 @@ function startGoto({ to, stopShort, color }) {
   let route;
   try { route = navNow().route(from, to); }
   catch (e) {
-    raise({ id: `unreachable-${step?.act.action_id}`, level: 'critical', simulated: obstacleKnown, title: `Can't reach ${to.name}`,
-            detail: e.message, location_id: to.id, action_id: step?.act.action_id ?? null });
-    dropAction(step?.act.action_id);
+    const actionId = currentStep()?.act.action_id ?? null;
+    raise({ id: `unreachable-${actionId}`, level: 'critical', simulated: obstacleKnown, title: `Can't reach ${to.name}`,
+            detail: e.message, location_id: to.id, action_id: actionId });
+    dropAction(actionId);
     return;
   }
   routes.push({ route, color });
@@ -290,22 +290,29 @@ function seeObstacle(walk) {
     routes.push({ route: detour, color: '#ff9f1c' });
     next.push(...walkSegs(detour, 1, walk.target, walk.goal));
   } else {
-    dropAction(step?.act.action_id);
+    dropAction(currentStep()?.act.action_id);
   }
   queue.unshift(...next);
 }
 
 // ---------------------------------------------------------------- alerts
+/** Alerts raised outside a step's own checks (obstacle, unreachable stop). */
 function raise(a) {
-  if (!a || seenAlerts.has(a.id)) return;
-  seenAlerts.add(a.id);
-  alerts.unshift({ ...a, at: step ? step.act.timestamp.slice(11, 19) : '' });
+  if (run) showRaised([run.raise(a)]);
+}
+
+/** New or escalated feed entries: refresh the list, banner the most serious one. */
+function showRaised(entries) {
+  const shown = entries.filter(Boolean);
+  if (!shown.length) return;
   renderAlerts();
-  if (a.level !== 'info') banner = { a, t0: performance.now() };
+  const top = shown.filter(a => a.level !== 'info').sort((a, b) => (a.level === 'critical' ? -1 : 0) - (b.level === 'critical' ? -1 : 0))[0];
+  if (top) banner = { a: top, t0: performance.now() };
 }
 
 function renderAlerts() {
-  const n = lvl => alerts.filter(a => a.level === lvl).length;
+  const alerts = run ? run.feed.list : [];
+  const n = lvl => (run ? run.feed.count(lvl) : 0);
   $('aCount').innerHTML = alerts.length
     ? `<span><span class="tag" style="color:var(--crit)">${n('critical')} critical</span><span class="tag" style="color:var(--warn)">${n('warning')} warn</span><span class="tag">${n('info')} info</span></span>` : '';
   $('alerts').innerHTML = alerts.length ? alerts.map((a, k) => `
@@ -317,7 +324,7 @@ function renderAlerts() {
 }
 $('alerts').addEventListener('click', e => {
   const el = e.target.closest('.alert'); if (!el) return;
-  const a = alerts[+el.dataset.k];
+  const a = run?.feed.list[+el.dataset.k];
   if (a?.location_id && byId[a.location_id]) highlight = { stop: byId[a.location_id], until: performance.now() + 2500 };
 });
 
@@ -361,6 +368,7 @@ function frame(now) {
 function updatePanel() {
   $('iMode').textContent = { idle: 'idle', walk: 'walking', inspect: 'inspecting', fail: '⚠ stopped' }[mode];
   $('iTarget').textContent = mode === 'idle' ? '–' : (target || '–');
+  const step = currentStep();
   if (step) {
     const a = step.act;
     $('iStep').textContent = `${step.i + 1} of ${step.n}: ${a.action_type.toLowerCase().replace(/_/g, ' ')}`;
@@ -397,7 +405,7 @@ function draw(alpha, now) {
   }
   if ($('showHealth').checked) drawHealthRings();
   if (selected && cardBox) drawConnector();
-  if (heatOn()) drawHeat(step ? step.prog : 0);
+  if (heatOn()) drawHeat(run ? run.progress : 0);
   if (obstacle) drawObstacle(obstacle);
   if (picked) {
     ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3;
@@ -470,7 +478,7 @@ function roundRect(x, y, w, h, r) {
 
 // ---------------------------------------------------------------- component health
 const healthColor = score => (score < 40 ? '#ff5c5c' : score < 70 ? '#ffb020' : '#5fd38d');
-const currentExtraC = () => (heatOn() ? heatWaveExtraC(step ? step.prog : 0, heatOn()) : 0);
+const currentExtraC = () => (heatOn() ? heatWaveExtraC(run ? run.progress : 0, heatOn()) : 0);
 
 /** Ring round each stop, coloured by its weakest component. */
 function drawHealthRings() {
@@ -615,7 +623,7 @@ function showRouteInfo(from, to, route, ms) {
   $('iStairs').textContent = route.usesStairs ? 'yes' : 'no';
   $('iMs').textContent = ms ? `${ms.toFixed(2)} ms` : '–';
   $('iWall').innerHTML = ok ? '<span class="ok">✓ clear</span>' : '<span class="bad">✖ hits wall</span>';
-  if (!step) log(`${ok ? '✓' : '✖'} ${name(from)} → ${name(to)}  ${route.lengthPx.toFixed(0)}px${route.usesStairs ? ' (stairs)' : ''}`, ok ? 'ok' : 'bad');
+  if (!currentStep()) log(`${ok ? '✓' : '✖'} ${name(from)} → ${name(to)}  ${route.lengthPx.toFixed(0)}px${route.usesStairs ? ' (stairs)' : ''}`, ok ? 'ok' : 'bad');
   return ok;
 }
 function wallCheck(route) {
@@ -632,10 +640,10 @@ function log(msg, cls = '') { $('log').innerHTML = `<div class="${cls}">${esc(ms
 const name = p => p.id ? `${p.id} ${p.name}` : `(${Math.round(p.x)}, ${Math.round(p.y)}) F${p.floor}`;
 
 // ---------------------------------------------------------------- controls
-function stopAll() { queue = []; seg = null; step = null; }
+function stopAll() { queue = []; seg = null; if (run) run.step = null; }
 function resetAll() {
   stopAll(); routes = []; picked = null;
-  alerts = []; seenAlerts = new Set(); banner = null; highlight = null;
+  run = null; banner = null; highlight = null;
   obstacle = null; obstacleKnown = false; navBlocked = null;
   renderAlerts();
 }

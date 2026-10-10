@@ -109,6 +109,15 @@ describe("alerts from the data", () => {
     assert.match(hot.detail, /83.5°C \+ 9°C/);
   });
 
+  test("a reading that is both hot and QUESTIONABLE keeps both flags (R0197: PANEL-215 at 82.8C)", () => {
+    const a = action("A0119");
+    const alerts = actionAlerts(a, data.readings, stop[a.location_id]);
+    const temp = alerts.find(x => x.id === "temp-R0197")!;
+    assert.equal(temp.level, "warning");
+    assert.match(temp.detail, /QUESTIONABLE/);
+    assert.ok(alerts.some(x => x.id === "q-R0197" && x.level === "info"), "the questionable-reading alert is still raised");
+  });
+
   test("no data alert ever claims to be simulated, and every alert id is unique per mission", () => {
     for (const id of new Set(data.actions.map(a => a.mission_id))) {
       const ids = missionActions(data, id).flatMap(a => actionAlerts(a, data.readings, stop[a.location_id]));

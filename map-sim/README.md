@@ -19,6 +19,9 @@ Floor plan, walkable grid, and A* pathfinding for the SPOT replay.
   dock). Pure functions, no drawing. See "Alerts and scenarios" below.
 - `src/sim/health.ts`: component health score (from the data) and remaining life (simulated).
   See "Component health and remaining life" below.
+- `src/sim/replay.ts`: a mission replay without drawing: `MissionRun` (current step, mission progress,
+  which alerts each step raises, skipped steps) and `AlertFeed` (one entry per alert, upgraded
+  when it gets more severe). The sandbox drives SPOT's walking and calls into it.
 - `src/sim/index.ts`: one import for everything above.
 - `src/sim/types.ts`: shared types.
 - `tools/build_grid.py`: builds the grid from hand-traced rectangles (rooms, corridors, doors).
@@ -27,12 +30,13 @@ Floor plan, walkable grid, and A* pathfinding for the SPOT replay.
 - `tests/astar.test.ts`: routes all 210 stop pairs and fails loudly if any is unreachable.
 - `tests/scenario.test.ts`: mission data checks, alert thresholds, and the dock obstacle detour from every stop.
 - `tests/health.test.ts`: health scores add up to their reasons, life estimates, heat effect.
+- `tests/replay.test.ts`: whole-mission replays (alert escalation, skipped steps, finished state).
 
 ## Testing it on its own (no backend, no frontend needed)
 Needs Node 22.6+ (for `--experimental-strip-types`).
 
     npm install          # one dev dependency: esbuild (only for the sandbox)
-    npm test             # 55 automated tests (pathfinding, SPOT motion, alerts, scenarios, component health)
+    npm test             # 64 automated tests (pathfinding, SPOT motion, alerts, scenarios, component health)
     npm run sandbox      # prints the exact URL to open, e.g. http://127.0.0.1:5173/sandbox/
 
 `npm test` checks, for all 210 stop-to-stop routes: every route exists, never
