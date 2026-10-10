@@ -1,7 +1,7 @@
 // Fetch helpers. Components call these and never read CSVs or hit fetch directly,
 // so switching from fixtures to the real backend is one flag: NEXT_PUBLIC_USE_MOCK.
 import missionM014 from "./mock/mission-M014.json";
-import type { ApiError, Decision, MissionDetail, Problem } from "./types";
+import type { ApiError, AssetDetail, Decision, MissionDetail, Problem } from "./types";
 
 // Mock until Backend's API is live; set NEXT_PUBLIC_USE_MOCK=false to use it.
 export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
@@ -49,6 +49,21 @@ export async function getMission(id: string): Promise<MissionDetail | null> {
   if (USE_MOCK) return MOCK_MISSIONS[id] ?? null;
   try {
     return await request<MissionDetail>(`/api/missions/${encodeURIComponent(id)}`);
+  } catch (e) {
+    if (e instanceof ApiRequestError && e.status === 404) return null;
+    throw e;
+  }
+}
+
+/** GET /api/assets/:id. Returns null for an unknown asset. */
+export async function getAsset(id: string): Promise<AssetDetail | null> {
+  if (USE_MOCK) {
+    // Loaded on demand so the 20-asset fixture never lands in the client bundle.
+    const { default: assets } = await import("./mock/assets.json");
+    return (assets as unknown as Record<string, AssetDetail>)[id] ?? null;
+  }
+  try {
+    return await request<AssetDetail>(`/api/assets/${encodeURIComponent(id)}`);
   } catch (e) {
     if (e instanceof ApiRequestError && e.status === 404) return null;
     throw e;

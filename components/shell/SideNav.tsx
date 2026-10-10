@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS } from "./nav";
+import { isActive, NAV_ITEMS } from "./nav";
 
 // Desktop: 72px rail under the top bar. Phone: the same items as a bottom tab bar.
 export function SideNav() {
@@ -15,7 +15,7 @@ export function SideNav() {
     >
       <ul className="flex justify-around py-1.5 md:flex-col md:items-center md:gap-[38px] md:py-3">
         {NAV_ITEMS.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = isActive(item.href, pathname);
           return (
             <li key={item.href}>
               <Link

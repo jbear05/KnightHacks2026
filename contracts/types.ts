@@ -205,6 +205,8 @@ export interface AssetDetail extends Asset {
   readings: Reading[];          // sorted by timestamp; one chart per measurement_type
   problems: Problem[];
   normal_bands: NormalBand[];   // empty array if none defined
+  actions?: Action[];           // optional: steps SPOT ran on this asset, sorted by timestamp. Lets the
+                                // page explain a reading or problem ("gauge step timed out").
 }
 
 // GET /api/insights -> Insights

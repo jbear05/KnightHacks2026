@@ -4,6 +4,12 @@ export const NAV_ITEMS = [
   { href: "/insights", label: "Insights", icon: "/figma/nav-insights.svg" },
 ] as const;
 
+/** Asset pages are reached from mission reports, so they sit under Missions in the nav. */
+export function isActive(href: string, pathname: string): boolean {
+  if (pathname === href || pathname.startsWith(`${href}/`)) return true;
+  return href === "/missions" && pathname.startsWith("/assets/");
+}
+
 /** Breadcrumb shown in the top bar chip, e.g. "Missions / M014". */
 export function crumbFor(pathname: string): string | null {
   const [section, id] = pathname.split("/").filter(Boolean);
