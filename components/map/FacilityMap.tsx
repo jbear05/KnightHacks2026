@@ -1,13 +1,13 @@
 "use client";
 
-// <FacilityMap /> in live mode (contracts/facility-map-props.ts), built on Map & Sim's engine in
+// <FacilityMap /> in live and heatmap mode (contracts/facility-map-props.ts), built on Map & Sim's engine in
 // map-sim/ (IliasCoder): NavGrid A* routes around the walls, and the animated SPOT drawn by
 // drawSpot(). map-sim works in pixels of the kit's floorplan.png (1095 x 595); this component
 // draws on the Figma cartoon plan (872 x 474), which is the same plan traced, so routes are moved
 // across with one scale-and-shift per floor (every stop lands within 5 px) and then pinned
 // exactly onto the Figma pins.
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FacilityMapLiveProps, LocationId, SpotStatus } from "@/contracts/facility-map-props";
+import type { FacilityMapHeatmapProps, FacilityMapLiveProps, LocationId, SpotStatus } from "@/contracts/facility-map-props";
 import { LOCATIONS } from "@/lib/reference";
 import { msOf, START_LOCATION } from "@/lib/replay";
 import type { Action } from "@/lib/types";
@@ -136,7 +136,7 @@ const pathD = (legs: Pt[][]) =>
 
 export type MapLayers = "route" | "findings" | "both";
 
-type Props = FacilityMapLiveProps & {
+type LiveProps = FacilityMapLiveProps & {
   /** Proposed addition for Map & Sim: the Route / Findings / Both toggle in the map card header. */
   layers?: MapLayers;
   /** Proposed addition: text for each alert badge ("High"), since alertLocationIds carries no severity. */
@@ -164,7 +164,7 @@ function spotAt(plan: Action[], doneIds: Set<string>, t: number, startTs: number
   return { index: next, from: prev?.location_id ?? START_LOCATION, to: a.location_id, progress, inspecting: t >= arrive };
 }
 
-export function FacilityMap({
+function LiveFacilityMap({
   events,
   plan = [],
   speed,
@@ -178,7 +178,7 @@ export function FacilityMap({
   layers = "both",
   base = "photo",
   className = "",
-}: Props) {
+}: LiveProps) {
   const sorted = useMemo(() => [...plan].sort((a, b) => a.sequence - b.sequence), [plan]);
   const latest = events[events.length - 1];
   const latestTs = latest ? msOf(latest.timestamp) : sorted.length ? msOf(sorted[0].timestamp) : 0;
@@ -403,4 +403,124 @@ export function FacilityMap({
       />
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Heatmap mode (Insights): no robot, a lime glow per stop sized by its value.
+// ---------------------------------------------------------------------------
+
+type HeatmapProps = FacilityMapHeatmapProps & {
+  /** Floor plan to draw on (default: Map & Sim's photo). */
+  base?: MapBase;
+  /** Proposed addition: one sticker callout pinned under a stop, e.g. the hotspot. */
+  callout?: { location_id: LocationId; title: string; detail: string } | null;
+};
+
+/** Glow diameter in plan px: grows with the value (Figma Insights: 1 -> 50, 8 -> 190). */
+const glowSize = (v: number) => (26 + 17 * v) * (W / 744);
+/** Count colour: 6+ failed red, 3+ high orange, else ink. */
+const countFill = (v: number) => (v >= 6 ? "#B8263F" : v >= 3 ? "#A9480F" : "#1F3A24");
+
+function HeatmapFacilityMap({ heat, heatLabel, base = "photo", callout, selectedLocationId, onSelectLocation, className = "" }: HeatmapProps) {
+  const photo = base === "photo";
+  const label = (id: LocationId, v: number) => heatLabel?.(id, v) ?? `${LOCATIONS[id]?.location_name ?? id}: ${v}`;
+  // Where each stop's glow and count sit: the head of the printed pin on the photo, the Figma pin on the cartoon.
+  const anchors = Object.fromEntries(
+    Object.keys(PINS).map((id) => {
+      const p = photo ? PHOTO_PINS[id] : PINS[id];
+      return [id, photo ? { x: p.x, y: p.y - 15 } : { x: p.x, y: p.y }];
+    }),
+  ) as Record<LocationId, { x: number; y: number }>;
+  const ids = Object.keys(PINS);
+  const hot = callout ? anchors[callout.location_id] : undefined;
+
+  return (
+    <div className={`relative ${className}`}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label="Facility map heatmap, floors 1 and 2">
+        <defs>
+          <radialGradient id="heat-glow">
+            <stop offset="0" stopColor="#C6EE45" stopOpacity={0.95} />
+            <stop offset="0.55" stopColor="#C6EE45" stopOpacity={0.55} />
+            <stop offset="1" stopColor="#C6EE45" stopOpacity={0} />
+          </radialGradient>
+        </defs>
+        {photo ? (
+          <image href={floorplan.src} x={PHOTO.ox} y={PHOTO.oy} width={MAP.width * PHOTO.sx} height={MAP.height * PHOTO.sy} preserveAspectRatio="none" />
+        ) : (
+          <>
+            <image href="/figma/floor-plan-cartoon.svg" x={0} y={0} width={W} height={H} />
+            <text x={36} y={15} className="fill-fg font-display text-[16px] font-semibold">Floor 1</text>
+            <text x={622} y={15} className="fill-fg font-display text-[16px] font-semibold">Floor 2</text>
+          </>
+        )}
+
+        {ids.map((id) => {
+          const v = heat[id] ?? 0;
+          if (v <= 0) return null;
+          const a = anchors[id];
+          return <circle key={`glow-${id}`} cx={a.x} cy={a.y} r={glowSize(v) / 2} fill="url(#heat-glow)" style={photo ? { mixBlendMode: "screen" } : undefined} />;
+        })}
+
+        {ids.map((id) => {
+          const v = heat[id] ?? 0;
+          const a = anchors[id];
+          const blight = v >= 3;
+          const selected = selectedLocationId === id;
+          // Count sticker to the top right of the pin head: blight glyph for 3+, then the number.
+          const w = (blight ? 22 : 6) + 8 * String(v).length + 8;
+          const x = photo ? a.x + 13 : a.x + 10;
+          const y = photo ? a.y - 22 : a.y - 10;
+          return (
+            <g
+              key={id}
+              role={onSelectLocation ? "button" : undefined}
+              tabIndex={onSelectLocation ? 0 : undefined}
+              aria-label={label(id, v)}
+              onClick={() => onSelectLocation?.(id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelectLocation?.(id);
+                }
+              }}
+              className={onSelectLocation ? "cursor-pointer" : undefined}
+            >
+              <title>{label(id, v)}</title>
+              {!photo && <image href={blight ? "/figma/glyph-blight.svg" : "/figma/glyph-idle.svg"} x={a.x - 11} y={a.y - 11} width={22} height={22} />}
+              {selected && <circle cx={a.x} cy={a.y} r={16} fill="none" stroke={photo ? "#FFFDF5" : "#1F3A24"} strokeWidth={2} />}
+              <rect x={x} y={y} width={w} height={20} rx={10} fill="#FFFDF5" stroke="#1F3A24" strokeWidth={1.5} />
+              {blight && <image href="/figma/glyph-blight.svg" x={x + 3} y={y + 1} width={18} height={18} />}
+              <text x={x + (blight ? 22 : 6)} y={y + 14.5} fill={countFill(v)} className="font-mono text-[12px] font-medium">
+                {!photo ? `${id} ` : ""}
+                {v}
+              </text>
+            </g>
+          );
+        })}
+
+        {callout && hot && (
+          <g transform={`translate(${Math.max(8, hot.x - 106)} ${hot.y + 30})`}>
+            <rect x={0} y={4} width={212} height={58} rx={14} fill="#1F3B24" />
+            <rect x={0} y={0} width={212} height={58} rx={14} fill="#FFF0B3" stroke="#1F3A24" strokeWidth={2} />
+            <text x={14} y={24} className="fill-fg font-sans text-[14px] font-extrabold">
+              {callout.title}
+            </text>
+            <text x={14} y={44} className="fill-fg-muted font-mono text-[12px]">
+              {callout.detail}
+            </text>
+          </g>
+        )}
+      </svg>
+      <ul className="sr-only">
+        {ids.map((id) => (
+          <li key={id}>{label(id, heat[id] ?? 0)}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Live Mission (mode="live") or Insights (mode="heatmap"). */
+export function FacilityMap(props: LiveProps | HeatmapProps) {
+  return props.mode === "heatmap" ? <HeatmapFacilityMap {...props} /> : <LiveFacilityMap {...props} />;
 }
