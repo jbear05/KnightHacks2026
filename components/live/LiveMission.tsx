@@ -98,7 +98,7 @@ export function LiveMission({ mission, at }: { mission: MissionDetail; at?: stri
                 </li>
               ))}
             </ul>
-            <p className="text-fg-muted type-body-sm">Route sequence shown; floor transfers are schematic.</p>
+            <p className="text-fg-muted type-body-sm">Walks follow the route grid around walls; SPOT hops between the two stairwells.</p>
             <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 type-body-sm" aria-label="Map legend">
               <Legend src="/figma/step-success-sm.svg" label="Succeeded step" />
               <Legend src="/figma/step-failed-sm.svg" label="Failed step" />
