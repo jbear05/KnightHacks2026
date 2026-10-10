@@ -184,6 +184,11 @@ function MissionRow({ m }: { m: MissionSummary }) {
       </td>
       <td className={`px-3 py-3 text-right type-number-md ${m.serious_problems ? "text-high" : "text-fg-subtle"}`}>{m.serious_problems}
         <span className="sr-only"> serious findings</span>
+        {m.serious_problems > 0 && (
+          <p className={`type-label ${m.awaiting_review > 0 ? "text-high" : "text-fg-subtle"}`}>
+            {m.awaiting_review > 0 ? `${m.awaiting_review} awaiting review` : "all have decisions"}
+          </p>
+        )}
       </td>
       <td className="px-5 py-3">
         <div className="flex flex-col gap-0.5 type-body-sm whitespace-nowrap">

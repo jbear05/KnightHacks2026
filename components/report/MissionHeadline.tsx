@@ -42,7 +42,7 @@ export function MissionHeadline({ mission: m }: { mission: MissionDetail }) {
           )}
           {serious > 0 ? (
             <span className="block text-high">
-              {serious === 1 ? "1 serious problem needs review." : `${serious} serious problems need review.`}
+              {serious === 1 ? "1 serious finding recorded." : `${serious} serious findings recorded.`}
             </span>
           ) : (
             <span className="block text-fg">No serious problems found.</span>

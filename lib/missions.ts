@@ -2,7 +2,7 @@
 import { dateOf } from "./format";
 import type { ConfigVersion, MissionStatus, MissionSummary } from "./types";
 
-export type Show = "all" | "issues" | "serious" | "clean";
+export type Show = "all" | "issues" | "serious" | "awaiting" | "clean";
 export type Sort = "newest" | "oldest" | "serious";
 
 export interface MissionFilters {
@@ -19,6 +19,7 @@ export const SHOW_LABEL: Record<Show, string> = {
   all: "All missions",
   issues: "Failed steps or serious findings",
   serious: "Serious findings only",
+  awaiting: "Findings awaiting review",
   clean: "No failed steps or serious findings",
 };
 
@@ -36,6 +37,7 @@ export function filterMissions(missions: MissionSummary[], f: MissionFilters): M
     if (f.status !== "all" && m.mission_status !== f.status) return false;
     if (f.show === "issues" && !hasIssues(m)) return false;
     if (f.show === "serious" && m.serious_problems === 0) return false;
+    if (f.show === "awaiting" && !(m.awaiting_review > 0)) return false;
     if (f.show === "clean" && hasIssues(m)) return false;
     return true;
   });

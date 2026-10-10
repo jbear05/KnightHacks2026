@@ -98,6 +98,8 @@ const summaries = missions.map((m) => {
     failed_actions: actions.filter((a) => a.mission_id === m.mission_id && a.status === "FAILED").length,
     serious_problems: serious.length,
     hidden_problems: statusOf[m.mission_id] === "COMPLETED" ? serious.length : 0,
+    // Fixtures carry no operator decisions, so every flagged finding is awaiting review.
+    awaiting_review: mine.filter((p) => p.operator_review_required.toLowerCase() === "true").length,
     in_replay: replayIds.has(m.mission_id),
   };
 });

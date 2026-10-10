@@ -154,6 +154,7 @@ export interface MissionSummary {
   failed_actions: number;       // count of actions with status FAILED
   serious_problems: number;     // count of HIGH/CRITICAL problems
   hidden_problems: number;      // count of problems with hidden_in_completed (drives the warning tag)
+  awaiting_review: number;      // problems with operator_review_required and no saved decision (decision IS NULL)
   in_replay: boolean;           // false for M024–M027 (no live replay available)
 }
 

@@ -381,7 +381,7 @@ function LiveFacilityMap({
             key={id}
             role={interactive ? "button" : undefined}
             tabIndex={interactive ? 0 : undefined}
-            aria-label={`${id} ${name}, ${stateText}${alert ? ", needs review" : ""}`}
+            aria-label={`${id} ${name}, ${stateText}${alert ? ", serious finding recorded" : ""}`}
             onClick={() => onSelectLocation?.(id)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {

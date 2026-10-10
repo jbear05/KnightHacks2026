@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
+import { ReviewState } from "@/components/report/ReviewState";
 import { SeverityBadge } from "@/components/ui/SeverityBadge";
 import { dayTime, problemContext } from "@/lib/asset";
 import { ANOMALY_LABEL, locationLabel } from "@/lib/format";
@@ -57,6 +58,7 @@ export function PastProblems({ asset: d }: { asset: AssetDetail }) {
                     {context ? ` · ${context}` : ""}
                   </p>
                   {p.hidden_in_completed && <p className="text-high type-label">Hidden in a completed mission</p>}
+                  <ReviewState problem={p} />
                 </div>
                 <SeverityBadge severity={p.severity} />
               </li>

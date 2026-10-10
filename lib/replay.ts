@@ -260,7 +260,7 @@ function buildFeed(m: MissionDetail, events: LiveEvent[], current: StepState | n
       case "PROBLEM_FOUND": {
         const p = e.details.problem;
         if (!SERIOUS.includes(p.severity)) break;
-        rows.push({ key: e.event_id, time, glyph: "problem", text: `${p.asset_id} needs review`, detail: `· ${p.location_id} · priority ${p.priority}` });
+        rows.push({ key: e.event_id, time, glyph: "problem", text: `${p.asset_id} serious finding`, detail: `· ${p.location_id} · priority ${p.priority}` });
         break;
       }
       case "MISSION_COMPLETED":

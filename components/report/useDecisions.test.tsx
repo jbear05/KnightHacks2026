@@ -9,6 +9,7 @@ import { useDecisions } from "./useDecisions";
 type Call = { problem: Problem; decision: Decision; resolve: () => void; reject: (e: Error) => void };
 const calls: Call[] = [];
 vi.mock("@/lib/api", () => ({
+  USE_MOCK: false,
   setDecision: (problem: Problem, decision: Decision) =>
     new Promise<Problem>((resolve, reject) => {
       calls.push({ problem, decision, resolve: () => resolve({ ...problem, decision }), reject });
@@ -42,7 +43,9 @@ describe("useDecisions", () => {
     await settle(() => calls[0].resolve()); // stale dispatch answers last
     expect(decisionOf(result.current.problems, hx217.anomaly_id)).toBe("watch");
     expect(result.current.pending.has(hx217.anomaly_id)).toBe(false);
-    expect(result.current.message?.text).toContain("watching");
+    expect(result.current.message?.text).toContain("HX-217: watch recorded.");
+    // A saved choice is a decision, not a resolution or a notification.
+    expect(result.current.message?.text).toContain("does not notify a technician or mark the equipment fixed");
   });
 
   it("ignores a stale failure instead of rolling back the newer choice", async () => {

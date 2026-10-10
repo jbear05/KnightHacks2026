@@ -1,14 +1,20 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { setDecision } from "@/lib/api";
+import { setDecision, USE_MOCK } from "@/lib/api";
 import type { Decision, Problem } from "@/lib/types";
 
+// Labels record a choice; none of them claims a technician was notified or the equipment fixed.
 export const DECISIONS: { value: Decision; label: string; chosen: string }[] = [
-  { value: "dispatch", label: "Send a tech", chosen: "Tech sent" },
-  { value: "watch", label: "Watch", chosen: "Watching" },
-  { value: "dismiss", label: "Dismiss", chosen: "Dismissed" },
+  { value: "dispatch", label: "Dispatch a tech", chosen: "Dispatch recorded" },
+  { value: "watch", label: "Watch", chosen: "Watch recorded" },
+  { value: "dismiss", label: "Dismiss", chosen: "Dismissal recorded" },
 ];
+
+/** Mock mode keeps decisions in this page only; say so instead of claiming a save. */
+export const SAVED_NOTE = USE_MOCK
+  ? "Mock mode: kept on this page only, not saved to a database, and lost on reload."
+  : "Saved with this finding. This records your decision only; it does not notify a technician or mark the equipment fixed.";
 
 export type DecisionMessage = { text: string; error: boolean } | null;
 
@@ -54,7 +60,7 @@ export function useDecisions(initial: Problem[]) {
       if (!isLatest()) return;
       patch(id, saved.decision);
       const label = DECISIONS.find((d) => d.value === saved.decision)?.chosen ?? "saved";
-      setMessage({ text: `${problem.asset_id}: ${label.toLowerCase()}. Saved with the mission.`, error: false });
+      setMessage({ text: `${problem.asset_id}: ${label.toLowerCase()}. ${SAVED_NOTE}`, error: false });
     } catch (e) {
       if (!isLatest()) return;
       patch(id, confirmed.current.get(id) ?? null);

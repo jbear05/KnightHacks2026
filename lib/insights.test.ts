@@ -25,10 +25,14 @@ const m = missions as MissionSummary[];
 describe("Insights derivations", () => {
   it("builds the hero from the mission list", () => {
     const h = hero(i, m);
-    expect(h).toMatchObject({ runs: 27, steps: 270, completed: 26, hidden: 14, hiddenRuns: 13, dateRange: "01 to 10 Sep 2026" });
+    expect(h).toMatchObject({ runs: 27, steps: 270, completed: 26, hidden: 14, hiddenRuns: 13, serious: 15, awaiting: 15, dateRange: "01 to 10 Sep 2026" });
     expect(heroLead(h)).toBe(
-      "26 of 27 missions finished as completed, but 14 high or critical findings across 13 of those runs still need attention. Compare locations, battery levels and inspection types below.",
+      "26 of 27 missions finished as completed, but 14 high or critical findings were recorded in 13 of those runs. 15 of 15 serious findings across all missions have no saved operator decision yet. Compare locations, battery levels and inspection types below.",
     );
+    // Saving decisions changes the review count, never the recorded totals.
+    const reviewed = hero(i, m.map((x) => ({ ...x, awaiting_review: 0 })));
+    expect(reviewed).toMatchObject({ hidden: 14, serious: 15, awaiting: 0 });
+    expect(heroLead(reviewed)).toContain("Every serious finding has a saved operator decision, which records a choice, not a confirmed fix.");
   });
 
   it("writes every So what sentence when Backend sends none", () => {

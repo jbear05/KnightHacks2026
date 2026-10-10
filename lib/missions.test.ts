@@ -20,6 +20,10 @@ describe("mission index filters", () => {
     const v1Serious = filterMissions(all, { ...NO_FILTERS, config: "V1", show: "serious" });
     expect(v1Serious.every((m) => m.configuration_version === "V1" && m.serious_problems > 0)).toBe(true);
     expect(filterMissions(all, { ...NO_FILTERS, status: "FAILED", show: "clean" })).toEqual([]);
+    // Fixtures carry no decisions, so every mission with serious findings is awaiting review.
+    expect(filterMissions(all, { ...NO_FILTERS, show: "awaiting" })).toEqual(filterMissions(all, { ...NO_FILTERS, show: "serious" }));
+    const reviewed = all.map((m) => (m.mission_id === "M014" ? { ...m, awaiting_review: 0 } : m));
+    expect(filterMissions(reviewed, { ...NO_FILTERS, show: "awaiting" }).map((m) => m.mission_id)).not.toContain("M014");
   });
 
   it("matches the dataset: 21 of 26 completed missions had failed steps", () => {

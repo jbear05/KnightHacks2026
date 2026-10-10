@@ -38,8 +38,12 @@ export interface Hero {
   runs: number;
   steps: number;
   completed: number;
+  /** Recorded HIGH/CRITICAL findings inside completed missions (historical, never changes). */
   hidden: number;
   hiddenRuns: number;
+  /** All recorded HIGH/CRITICAL findings, and those with no saved operator decision yet. */
+  serious: number;
+  awaiting: number;
   dateRange: string;
 }
 
@@ -71,6 +75,8 @@ export function hero(insights: Insights, missions: MissionSummary[]): Hero {
     completed: missions.filter((m) => m.mission_status === "COMPLETED").length,
     hidden: missions.reduce((n, m) => n + m.hidden_problems, 0),
     hiddenRuns: missions.filter((m) => m.hidden_problems > 0).length,
+    serious: missions.reduce((n, m) => n + m.serious_problems, 0),
+    awaiting: missions.reduce((n, m) => n + (m.awaiting_review ?? m.serious_problems), 0),
     dateRange: dateRange(missions),
   };
 }
@@ -79,9 +85,13 @@ export function heroLead(h: Hero): string {
   const done = `${h.completed} of ${h.runs} missions finished as completed`;
   const tail = "Compare locations, battery levels and inspection types below.";
   if (h.hidden === 0) return `${done}, and none of them hid a high or critical finding. ${tail}`;
-  const findings = h.hidden === 1 ? "1 high or critical finding" : `${h.hidden} high or critical findings`;
+  const findings = h.hidden === 1 ? "1 high or critical finding was" : `${h.hidden} high or critical findings were`;
   const runs = h.hiddenRuns === 1 ? "1 of those runs" : `${h.hiddenRuns} of those runs`;
-  return `${done}, but ${findings} across ${runs} still ${h.hidden === 1 ? "needs" : "need"} attention. ${tail}`;
+  const review =
+    h.awaiting === 0
+      ? `Every serious finding has a saved operator decision, which records a choice, not a confirmed fix.`
+      : `${h.awaiting} of ${h.serious} serious findings across all missions have no saved operator decision yet.`;
+  return `${done}, but ${findings} recorded in ${runs}. ${review} ${tail}`;
 }
 
 // ---------- V1 vs V2 ----------

@@ -19,7 +19,7 @@ export default async function MissionsPage({ searchParams }: Props) {
     q: typeof sp.q === "string" ? sp.q.slice(0, 80) : "",
     config: pick(sp.config, ["all", "V1", "V2"], NO_FILTERS.config),
     status: pick(sp.status, ["all", "COMPLETED", "FAILED"], NO_FILTERS.status),
-    show: pick(sp.show, ["all", "issues", "serious", "clean"], NO_FILTERS.show),
+    show: pick(sp.show, ["all", "issues", "serious", "awaiting", "clean"], NO_FILTERS.show),
     sort: pick(sp.sort, ["newest", "oldest", "serious"], NO_FILTERS.sort),
   };
   const missions = await getMissions();
