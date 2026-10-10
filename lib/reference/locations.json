@@ -1,0 +1,137 @@
+[
+  {
+    "location_id": "WP01",
+    "location_name": "Main Entrance",
+    "zone_type": "ACCESS",
+    "floor": 1,
+    "x_coord": 15.7,
+    "y_coord": 50.2,
+    "environment": "NORMAL"
+  },
+  {
+    "location_id": "WP02",
+    "location_name": "Electrical Room",
+    "zone_type": "ELECTRICAL",
+    "floor": 1,
+    "x_coord": 63.2,
+    "y_coord": 90.8,
+    "environment": "INDOOR_DUSTY"
+  },
+  {
+    "location_id": "WP03",
+    "location_name": "Cooling Loop",
+    "zone_type": "PROCESS",
+    "floor": 1,
+    "x_coord": 85.5,
+    "y_coord": 60.9,
+    "environment": "LOW_LIGHT"
+  },
+  {
+    "location_id": "WP04",
+    "location_name": "Pump Bay",
+    "zone_type": "MECHANICAL",
+    "floor": 1,
+    "x_coord": 75.5,
+    "y_coord": 54.3,
+    "environment": "LOW_LIGHT"
+  },
+  {
+    "location_id": "WP05",
+    "location_name": "Pipe Gallery",
+    "zone_type": "PROCESS",
+    "floor": 1,
+    "x_coord": 72.6,
+    "y_coord": 57.8,
+    "environment": "HIGH_NOISE"
+  },
+  {
+    "location_id": "WP06",
+    "location_name": "Compressor Area",
+    "zone_type": "MECHANICAL",
+    "floor": 1,
+    "x_coord": 5.2,
+    "y_coord": 12.3,
+    "environment": "HIGH_NOISE"
+  },
+  {
+    "location_id": "WP07",
+    "location_name": "Control Room Corridor",
+    "zone_type": "ACCESS",
+    "floor": 1,
+    "x_coord": 78.5,
+    "y_coord": 45.5,
+    "environment": "LOW_LIGHT"
+  },
+  {
+    "location_id": "WP08",
+    "location_name": "Turbine Hall North",
+    "zone_type": "MECHANICAL",
+    "floor": 1,
+    "x_coord": 66.1,
+    "y_coord": 23.9,
+    "environment": "HIGH_NOISE"
+  },
+  {
+    "location_id": "WP09",
+    "location_name": "Turbine Hall South",
+    "zone_type": "MECHANICAL",
+    "floor": 1,
+    "x_coord": 36.3,
+    "y_coord": 94.9,
+    "environment": "HIGH_NOISE"
+  },
+  {
+    "location_id": "WP10",
+    "location_name": "Valve Station",
+    "zone_type": "PROCESS",
+    "floor": 1,
+    "x_coord": 77.5,
+    "y_coord": 95.0,
+    "environment": "NORMAL"
+  },
+  {
+    "location_id": "WP11",
+    "location_name": "Battery Room",
+    "zone_type": "ELECTRICAL",
+    "floor": 2,
+    "x_coord": 62.4,
+    "y_coord": 70.1,
+    "environment": "INDOOR_DRY"
+  },
+  {
+    "location_id": "WP12",
+    "location_name": "Heat Exchanger Area",
+    "zone_type": "PROCESS",
+    "floor": 2,
+    "x_coord": 55.2,
+    "y_coord": 31.3,
+    "environment": "LOW_LIGHT"
+  },
+  {
+    "location_id": "WP13",
+    "location_name": "Warehouse Corridor",
+    "zone_type": "ACCESS",
+    "floor": 2,
+    "x_coord": 17.7,
+    "y_coord": 63.0,
+    "environment": "NORMAL"
+  },
+  {
+    "location_id": "WP14",
+    "location_name": "Auxiliary Systems Bay",
+    "zone_type": "MECHANICAL",
+    "floor": 2,
+    "x_coord": 32.8,
+    "y_coord": 81.3,
+    "environment": "HIGH_NOISE"
+  },
+  {
+    "location_id": "WP15",
+    "location_name": "Inspection Dock",
+    "zone_type": "ACCESS",
+    "floor": 2,
+    "x_coord": 37.7,
+    "y_coord": 43.0,
+    "environment": "LOW_LIGHT"
+  }
+]

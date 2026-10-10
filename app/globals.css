@@ -1,0 +1,174 @@
+@import "tailwindcss";
+
+/*
+ * Watchdog design tokens ("Lenny's garden" bloom vs blight).
+ * Source of truth: Figma file QNuYiJcgbleEPwnjJaxoPK, variable collection "Watchdog"
+ * (re-extracted 2026-10-10), mirrored in design/tokens.json.
+ * Naming: Figma `color/fg-muted` = CSS `--color-fg-muted` = Tailwind `text-fg-muted`.
+ */
+@theme {
+  --color-canvas: #fff6e9;
+  --color-surface: #ffffff;
+  --color-raised: #fce7dc;
+  --color-line: #ebdcc6;
+  --color-line-strong: #1f3a24;
+  --color-fg: #1f3a24;
+  --color-fg-muted: #4e6b50;
+  --color-fg-subtle: #5e7159;
+  --color-spot: #f5c400;
+  --color-on-spot: #1f3a24;
+  --color-spot-tint: #fff0b3;
+  --color-success: #277a33;
+  --color-success-tint: #ddf2cf;
+  --color-failed: #b8263f;
+  --color-failed-tint: #f9d6db;
+  --color-critical: #b8263f;
+  --color-high: #a9480f;
+  --color-high-tint: #fce0cc;
+  --color-medium: #85600a;
+  --color-low: #6e6585;
+  --color-low-tint: #ece8f3;
+  --color-questionable: #6e6585;
+  --color-pollen: #f4b6c2;
+  --color-pollen-tint: #fde9ec;
+  --color-leaf: #6dbb55;
+  --color-leaf-shade: #3f8e3e;
+  --color-stem: #7a2433;
+  --color-blight: #c6ee45;
+  --color-blight-deep: #2b2140;
+  --color-cream: #f5ebc4;
+
+  --radius-badge: 999px;
+  --radius-button: 12px;
+  --radius-card: 20px;
+  --radius-pill: 999px;
+
+  /* Figma effect style shadow/sticker: hard 4px ink drop, no blur. */
+  --shadow-sticker: 0px 4px 0px 0px #1f3b24;
+}
+
+/* next/font exposes each family as a CSS variable on <html> (see app/layout.tsx). */
+@theme inline {
+  --font-display: var(--font-fredoka), "Fredoka", system-ui, sans-serif;
+  --font-sans: var(--font-nunito), "Nunito", system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* Figma text styles (text/*). */
+@utility type-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 50px;
+}
+@utility type-heading-lg {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 36px;
+}
+@utility type-heading-md {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 24px;
+}
+@utility type-label {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+@utility type-number-xl {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 48px;
+  font-variant-numeric: tabular-nums;
+}
+@utility type-number-md {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 26px;
+  font-variant-numeric: tabular-nums;
+}
+@utility type-body {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 20px;
+}
+@utility type-body-strong {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 20px;
+}
+@utility type-body-sm {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 16px;
+}
+@utility type-lead {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 18px;
+  line-height: 28px;
+}
+@utility type-button {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 20px;
+}
+@utility type-badge {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 16px;
+}
+@utility type-mono {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* White sticker panel: 2px ink outline, 20px corners, hard ink shadow. */
+@utility sticker {
+  border: 2px solid var(--color-line-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sticker);
+}
+
+@layer base {
+  html {
+    /* Keep focused or linked content clear of the fixed 56px top bar. */
+    scroll-padding-top: 72px;
+    background: var(--color-canvas);
+    color: var(--color-fg);
+  }
+  body {
+    background: var(--color-canvas);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-line-strong);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

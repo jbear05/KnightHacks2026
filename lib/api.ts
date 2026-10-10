@@ -1,0 +1,54 @@
+// Fetch helpers. Components call these and never read CSVs or hit fetch directly,
+// so switching from fixtures to the real backend is one flag: NEXT_PUBLIC_USE_MOCK.
+import missionM014 from "./mock/mission-M014.json";
+import type { ApiError, Decision, MissionDetail, Problem } from "./types";
+
+// Mock until Backend's API is live; set NEXT_PUBLIC_USE_MOCK=false to use it.
+export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
+
+const MOCK_MISSIONS: Record<string, MissionDetail> = {
+  M014: missionM014 as MissionDetail,
+};
+
+export class ApiRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as ApiError | null;
+    throw new ApiRequestError(body?.error ?? `Request failed (${res.status})`, res.status);
+  }
+  return res.json() as Promise<T>;
+}
+
+/** GET /api/missions/:id. Returns null for an unknown mission. */
+export async function getMission(id: string): Promise<MissionDetail | null> {
+  if (USE_MOCK) return MOCK_MISSIONS[id] ?? null;
+  try {
+    return await request<MissionDetail>(`/api/missions/${encodeURIComponent(id)}`);
+  } catch (e) {
+    if (e instanceof ApiRequestError && e.status === 404) return null;
+    throw e;
+  }
+}
+
+/** POST /api/problems/:id/decision. Mock mode echoes the change back after a short delay. */
+export async function setDecision(problem: Problem, decision: Decision): Promise<Problem> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 150));
+    return { ...problem, decision };
+  }
+  return request<Problem>(`/api/problems/${encodeURIComponent(problem.anomaly_id)}/decision`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  });
+}
