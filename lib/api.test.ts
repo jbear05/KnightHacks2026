@@ -26,6 +26,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("getAsset in mock mode", () => {
+  it("loads a known asset", async () => {
+    const { getAsset } = await loadApi({ NEXT_PUBLIC_USE_MOCK: "true" });
+    await expect(getAsset("PANEL-212")).resolves.toMatchObject({ asset_id: "PANEL-212" });
+  });
+
+  it.each(["UNKNOWN", "toString", "constructor", "__proto__"])("returns null for unknown asset %s", async (id) => {
+    const { getAsset } = await loadApi({ NEXT_PUBLIC_USE_MOCK: "true" });
+    await expect(getAsset(id)).resolves.toBeNull();
+  });
+});
+
 describe("getMission on the server with the real API", () => {
   it("uses the local Next server when no API base is set", async () => {
     const fetch = mockFetch();

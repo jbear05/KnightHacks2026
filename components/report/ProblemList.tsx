@@ -42,7 +42,7 @@ export function ProblemList({ problems: initial }: { problems: Problem[] }) {
                   <h3 className="type-body-strong">
                     {ANOMALY_LABEL[p.anomaly_type]} ·{" "}
                     <Link
-                      href={`/assets/${encodeURIComponent(p.asset_id)}`}
+                      href={`/assets/${encodeURIComponent(p.asset_id)}?from=${encodeURIComponent(p.mission_id)}`}
                       className="underline-offset-2 hover:underline"
                     >
                       {p.asset_id}

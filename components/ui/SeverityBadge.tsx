@@ -5,17 +5,18 @@ import type { Severity } from "@/lib/types";
 
 // Colour + icon + label, never colour alone. HIGH uses the exported Figma icon; the Figma file
 // only has the HIGH variant drawn on this screen, so the others use lucide icons from the plan's table.
+// MEDIUM is an outline badge in Figma: medium-coloured border, no fill.
 const STYLE: Record<Severity, string> = {
-  CRITICAL: "bg-critical text-white",
-  HIGH: "bg-high-tint text-high",
-  MEDIUM: "bg-surface text-medium",
-  LOW: "bg-low-tint text-low",
+  CRITICAL: "border-line-strong bg-critical text-white",
+  HIGH: "border-line-strong bg-high-tint text-high",
+  MEDIUM: "border-medium text-medium",
+  LOW: "border-line-strong bg-low-tint text-low",
 };
 
 export function SeverityBadge({ severity, className = "" }: { severity: Severity; className?: string }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-badge border-[1.5px] border-line-strong px-2 py-1 type-badge ${STYLE[severity]} ${className}`}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-badge border-[1.5px] px-2 py-1 type-badge ${STYLE[severity]} ${className}`}
     >
       {severity === "HIGH" ? (
         <Image src="/figma/icon-alert-triangle-high.svg" alt="" width={16} height={16} />

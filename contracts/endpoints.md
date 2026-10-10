@@ -10,7 +10,7 @@ Types live in [types.ts](types.ts) (copy to `lib/types.ts`). Checked on 2026-10-
 | `GET /api/missions` | `MissionSummary[]` | Adds `hidden_problems` (warning tag) and `in_replay` (false for M024–M027). |
 | `GET /api/missions/:id` | `MissionDetail` | `actions` by sequence, `problems` by priority desc, `readings` for the side panel, `summary` or null. |
 | `GET /api/insights` | `Insights` | Every chart is a `RateStat` (total, succeeded, pct) so the UI can show "3 of 11". Adds `repeatAssets`. |
-| `GET /api/assets/:id` | `AssetDetail` | `normal_bands` is `[]` until D3 is decided. |
+| `GET /api/assets/:id` | `AssetDetail` | `normal_bands` is `[]` until D3 is decided. Optional `actions` (the asset's steps, `SELECT * FROM actions WHERE asset_id = $1 ORDER BY timestamp`) lets Asset Detail explain failures; the page works without it. |
 | `GET /api/locations` | `Location[]` | **New.** Map & Sim and `lib/format.ts` need waypoint names, floors and coords. |
 | `GET /api/replay?mission=M014&speed=60&from=E00123` (SSE) | `LiveEvent` messages, then one `event: end` with `ReplayEnd` | `from` is optional (scrubbing). Only M001–M023 have events. |
 | `POST /api/problems/:id/decision` | body `DecisionRequest` → updated `Problem` | `notes` optional; inserts a row in `operator_decisions`. |
