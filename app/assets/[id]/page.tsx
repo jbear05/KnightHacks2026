@@ -15,14 +15,14 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  return { title: `Asset ${decodeURIComponent(id)}` };
+  return { title: `Asset ${id}` };
 }
 
 // Screen D: Asset Detail. Reached from a problem row on a mission report (?from=M014).
 export default async function AssetPage({ params, searchParams }: Props) {
   const { id } = await params;
   const { from } = await searchParams;
-  const asset = await getAsset(decodeURIComponent(id));
+  const asset = await getAsset(id);
   if (!asset) notFound();
 
   // "Back to" the report the operator came from, else the mission behind the photo's problem.

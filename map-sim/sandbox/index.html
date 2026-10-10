@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Route Sandbox</title>
+<!--
+  Try the pathfinding and the SPOT animation by hand. No backend or frontend project needed.
+    npm run sandbox      (bundles src/sim/index.ts and serves the folder)
+    open the "Sandbox" URL it prints (http://127.0.0.1:5173/sandbox/ by default)
+-->
+<style>
+  :root { --bg:#0f1115; --panel:#181b22; --ink:#e8eaf0; --mut:#9aa3b2; --acc:#ffd23f; }
+  body { margin:0; font:14px/1.4 system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; padding:10px 14px; background:var(--panel); }
+  header b { color:var(--acc); }
+  button, select { padding:6px 10px; background:#262b36; color:var(--ink); border:1px solid #3a4150; border-radius:6px; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  main { display:flex; gap:14px; padding:14px; align-items:flex-start; flex-wrap:wrap; }
+  canvas { max-width:100%; border-radius:6px; cursor:crosshair; }
+  #info { min-width:260px; max-width:320px; background:var(--panel); padding:12px 14px; border-radius:8px; }
+  #info h3 { margin:0 0 8px; font-size:14px; color:var(--acc); }
+  #info .row { display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid #262b36; padding:4px 0; }
+  #info .row span:first-child { color:var(--mut); }
+  #log { margin-top:10px; font:12px ui-monospace,monospace; color:var(--mut); white-space:pre-wrap; max-height:260px; overflow:auto; }
+  .ok { color:#5fd38d } .bad { color:#ff6b6b }
+  label { color:var(--mut); }
+</style>
+</head>
+<body>
+<header>
+  <span><b>Route sandbox</b>: click a stop, then another. Click empty floor to route to any point.</span>
+  <label><input type="checkbox" id="showGrid"> show walkable grid</label>
+  <label>Walk speed <select id="speed"><option value="35">slow</option><option value="80" selected>normal</option><option value="220">fast</option></select></label>
+  <label><input type="checkbox" id="showRoutes" checked> show route lines</label>
+  <button id="rand">10 random routes</button>
+  <button id="tour">Replay M001 (with results)</button>
+  <button id="clear">Clear</button>
+</header>
+<main>
+  <canvas id="cv"></canvas>
+  <div id="info">
+    <h3>SPOT</h3>
+    <div class="row"><span>Status</span><span id="iMode">idle</span></div>
+    <div class="row"><span>Heading to</span><span id="iTarget">–</span></div>
+    <h3 style="margin-top:12px">Last route</h3>
+    <div class="row"><span>From</span><span id="iFrom">–</span></div>
+    <div class="row"><span>To</span><span id="iTo">–</span></div>
+    <div class="row"><span>Length</span><span id="iLen">–</span></div>
+    <div class="row"><span>Uses stairs</span><span id="iStairs">–</span></div>
+    <div class="row"><span>Compute time</span><span id="iMs">–</span></div>
+    <div class="row"><span>Wall check</span><span id="iWall">–</span></div>
+    <div id="log"></div>
+  </div>
+</main>
+<script type="module">
+import { NavGrid, pointAlong, polylineLength, SpotAnimator, drawSpot, headingAlong } from './sim.js';
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const S = 2;                       // canvas is drawn at 2x for crispness
+const BODY = 30;                   // SPOT body length, in floor-plan px
+const [map, img] = await Promise.all([
+  fetch('../data/map.json').then(r => r.json()),
+  new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = '../public/floorplan.png'; }),
+]);
+cv.width = map.width * S; cv.height = map.height * S;
+cv.style.width = map.width * 1.15 + 'px';
+const nav = new NavGrid(map);
+const byId = Object.fromEntries(map.stops.map(s => [s.id, s]));
+const floorOf = x => (x >= map.floors['2'].x0 ? 2 : 1);
+const COLORS = ['#ffd23f','#ff5d8f','#4cc9f0','#7bf1a8','#ff9f1c','#c77dff','#f72585','#90e0ef','#ff6b6b','#b5e48c'];
+const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------- state
+let routes = [];                    // drawn route lines: [{route, color}]
+let picked = null;                  // first click of a pair
+let spot = { ...byId.WP01 };        // where SPOT is (floor-plan px)
+let mode = 'idle', target = null;
+const animator = new SpotAnimator(-Math.PI / 2);
+animator.reset(spot.x * S, spot.y * S);
+
+/**
+ * The animation is a queue of segments, played one after another:
+ *   {kind:'walk',   pts, len, upTo}   walk a polyline (upTo < len = stop short)
+ *   {kind:'stairs', from, to, dur}    fade out at one end, fade in at the other
+ *   {kind:'pause',  mode, dur, msg}   stand still: 'inspect' or 'fail'
+ */
+let queue = [], seg = null, segT = 0, segD = 0;
+
+function enqueueRoute(from, to, { color, stopShort = 1, label } = {}) {
+  const t0 = performance.now();
+  let route;
+  try { route = nav.route(from, to); }
+  catch (e) { log(`✖ ${name(from)} → ${name(to)}: ${e.message}`, 'bad'); return null; }
+  showRouteInfo(from, to, route, performance.now() - t0);
+  routes.push({ route, color: color || COLORS[routes.length % COLORS.length] });
+  route.legs.forEach((pts, i) => {
+    if (i > 0) queue.push({ kind: 'stairs', from: route.legs[i - 1].at(-1), to: pts[0], dur: 0.9 });
+    const len = polylineLength(pts);
+    const last = i === route.legs.length - 1;
+    queue.push({ kind: 'walk', pts, len, upTo: last ? len * stopShort : len, target: label || name(to) });
+  });
+  // where SPOT will be after this route
+  const lastLeg = route.legs.at(-1);
+  return stopShort < 1 ? pointAlong(lastLeg, polylineLength(lastLeg) * stopShort) : { ...to };
+}
+
+// ---------------------------------------------------------------- per-frame update
+let lastNow = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - lastNow) / 1000); lastNow = now;
+  let alpha = 1, faceHeading;
+
+  if (!seg && queue.length) { seg = queue.shift(); segT = 0; segD = 0; }
+  if (seg) {
+    segT += dt;
+    if (seg.kind === 'walk') {
+      mode = 'walk'; target = seg.target;
+      segD = Math.min(seg.upTo, segD + (+$('speed').value) * dt);
+      spot = pointAlong(seg.pts, segD);
+      faceHeading = headingAlong(seg.pts, segD + 2);
+      if (segD >= seg.upTo) seg = null;
+    } else if (seg.kind === 'stairs') {
+      mode = 'walk'; target = 'stairs';
+      const half = seg.dur / 2;
+      if (segT < half) { spot = seg.from; alpha = 1 - segT / half; }
+      else {
+        if (spot !== seg.to) { spot = seg.to; animator.reset(spot.x * S, spot.y * S); }
+        alpha = Math.min(1, (segT - half) / half);
+      }
+      if (segT >= seg.dur) seg = null;
+    } else if (seg.kind === 'pause') {
+      mode = seg.mode;
+      if (segT >= seg.dur) seg = null;
+    }
+  } else { mode = 'idle'; }
+
+  animator.update(spot.x * S, spot.y * S, dt, BODY * S, faceHeading);
+  draw(alpha, now / 1000);
+  $('iMode').textContent = { idle: 'idle', walk: 'walking', inspect: 'inspecting', fail: '⚠ failed' }[mode];
+  $('iTarget').textContent = mode === 'idle' ? '–' : (target || '–');
+  requestAnimationFrame(frame);
+}
+
+function draw(alpha, t) {
+  ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  if ($('showGrid').checked) {
+    ctx.fillStyle = 'rgba(0,255,120,0.22)';
+    const c = map.grid.cell * S;
+    map.grid.rows.forEach((row, r) => { for (let k = 0; k < row.length; k++) if (row[k] === '#') ctx.fillRect(k*c, r*c, c, c); });
+  }
+  for (const k of ['F1','F2']) {
+    const p = map.stairs[k]; ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3;
+    ctx.strokeRect(p.x*S-8, p.y*S-8, 16, 16);
+  }
+  if ($('showRoutes').checked) for (const { route, color } of routes) {
+    for (const leg of route.legs) {
+      ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.setLineDash([10, 8]);
+      ctx.beginPath(); leg.forEach((p, i) => i ? ctx.lineTo(p.x*S, p.y*S) : ctx.moveTo(p.x*S, p.y*S)); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+  if (picked) {
+    ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(picked.x*S, picked.y*S, 14, 0, 7); ctx.stroke();
+  }
+  ctx.globalAlpha = alpha;
+  drawSpot(ctx, { x: spot.x*S, y: spot.y*S, heading: animator.heading, gait: animator.gait,
+                  walking: animator.walking, mode, size: BODY*S, t });
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- info panel
+function showRouteInfo(from, to, route, ms) {
+  const ok = wallCheck(route);
+  $('iFrom').textContent = name(from); $('iTo').textContent = name(to);
+  $('iLen').textContent = `${route.lengthPx.toFixed(0)} px`;
+  $('iStairs').textContent = route.usesStairs ? 'yes' : 'no';
+  $('iMs').textContent = `${ms.toFixed(2)} ms`;
+  $('iWall').innerHTML = ok ? '<span class="ok">✓ clear</span>' : '<span class="bad">✖ hits wall</span>';
+  log(`${ok ? '✓' : '✖'} ${name(from)} → ${name(to)}  ${route.lengthPx.toFixed(0)}px${route.usesStairs ? ' (stairs)' : ''}`, ok ? 'ok' : 'bad');
+  return ok;
+}
+function wallCheck(route) {
+  for (const leg of route.legs) {
+    const L = polylineLength(leg);
+    for (let d = 0; d <= L; d += 0.5) {
+      const p = pointAlong(leg, d);
+      if (!nav.isWalkable(Math.floor(p.x / nav.cell), Math.floor(p.y / nav.cell))) return false;
+    }
+  }
+  return true;
+}
+function log(msg, cls = '') { $('log').innerHTML = `<div class="${cls}">${msg}</div>` + $('log').innerHTML; }
+const name = p => p.id ? `${p.id} ${p.name}` : `(${Math.round(p.x)}, ${Math.round(p.y)}) F${p.floor}`;
+
+// ---------------------------------------------------------------- controls
+function stopAll() { queue = []; seg = null; }
+
+cv.addEventListener('click', e => {
+  const b = cv.getBoundingClientRect();
+  const x = (e.clientX - b.left) * map.width / b.width, y = (e.clientY - b.top) * map.height / b.height;
+  const near = map.stops.find(s => Math.hypot(s.x - x, s.y - y) < 12);
+  const pt = near || { x, y, floor: floorOf(x) };
+  if (!near && !nav.isWalkable(Math.floor(x / nav.cell), Math.floor(y / nav.cell))) {
+    log(`✖ (${Math.round(x)}, ${Math.round(y)}) is not walkable; tick "show walkable grid" and pick a green cell`, 'bad');
+    return;
+  }
+  if (!picked) { picked = pt; log(`start: ${name(pt)}`); return; }
+  stopAll(); routes = [];
+  spot = { ...picked }; animator.reset(spot.x * S, spot.y * S);
+  enqueueRoute(picked, pt);
+  picked = null;
+});
+
+$('rand').onclick = () => {
+  stopAll(); routes = [];
+  let walls = 0;
+  for (let i = 0; i < 10; i++) {
+    const a = map.stops[Math.random() * 15 | 0];
+    let b; do { b = map.stops[Math.random() * 15 | 0]; } while (b === a);
+    const r = nav.route(a, b);
+    routes.push({ route: r, color: COLORS[i] });
+    if (!wallCheck(r)) walls++;
+  }
+  log(`10 random routes drawn, ${walls} wall hits`, walls ? 'bad' : 'ok');
+};
+
+// M001 from actions.csv: stop, action, result. Starts at WP01 (assumed dock).
+const M001 = [
+  ['WP05', 'NAVIGATION',          'FAILED', 'OBSTACLE_DETECTION'],
+  ['WP10', 'VISUAL_INSPECTION',   'SUCCESS'],
+  ['WP10', 'ACOUSTIC_INSPECTION', 'SUCCESS'],
+  ['WP09', 'VISUAL_INSPECTION',   'SUCCESS'],
+  ['WP01', 'ACOUSTIC_INSPECTION', 'SUCCESS'],
+  ['WP12', 'VISUAL_INSPECTION',   'SUCCESS'],
+  ['WP15', 'VISUAL_INSPECTION',   'SUCCESS'],
+  ['WP07', 'THERMAL_INSPECTION',  'SUCCESS'],
+  ['WP03', 'VISUAL_INSPECTION',   'FAILED', 'SENSOR_TIMEOUT'],
+  ['WP05', 'VISUAL_INSPECTION',   'SUCCESS'],
+];
+$('tour').onclick = () => {
+  stopAll(); routes = [];
+  let cur = { ...byId.WP01 };
+  spot = { ...cur }; animator.reset(spot.x * S, spot.y * S, -Math.PI / 2);
+  M001.forEach(([id, action, status, why], i) => {
+    const stop = byId[id];
+    const failedNav = action === 'NAVIGATION' && status === 'FAILED';
+    if (cur.x !== stop.x || cur.y !== stop.y) {
+      cur = enqueueRoute(cur, stop, { color: COLORS[i % COLORS.length], stopShort: failedNav ? 0.7 : 1, label: `${id} ${stop.name}` }) || cur;
+    }
+    queue.push({ kind: 'pause', mode: status === 'FAILED' ? 'fail' : 'inspect', dur: status === 'FAILED' ? 1.8 : 1.2 });
+    log(`${status === 'FAILED' ? '⚠' : '•'} ${id} ${action.toLowerCase().replace('_', ' ')}: ${status}${why ? ' (' + why + ')' : ''}`, status === 'FAILED' ? 'bad' : '');
+  });
+  log('M001 replay (stop order and results from actions.csv; timing not real yet)');
+};
+
+$('clear').onclick = () => { stopAll(); routes = []; picked = null; $('log').innerHTML = ''; };
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
