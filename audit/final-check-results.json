@@ -1,0 +1,546 @@
+{
+  "counts": {
+    "missions": 27,
+    "actions": 270,
+    "readings": 220,
+    "anomalies": 40,
+    "locations": 15,
+    "assets": 20,
+    "replay_events": 500
+  },
+  "metrics": {
+    "completed_missions": 26,
+    "completed_with_failed_actions": 21,
+    "hidden_serious_findings": 14,
+    "completed_missions_with_hidden_findings": 13,
+    "replay_missions": 23,
+    "failed_actions": 49
+  },
+  "insights": {
+    "compare": {
+      "V1": {
+        "missions": {
+          "total": 18,
+          "succeeded": 17,
+          "pct": 94.4
+        },
+        "actions": {
+          "total": 180,
+          "succeeded": 139,
+          "pct": 77.2
+        }
+      },
+      "V2": {
+        "missions": {
+          "total": 9,
+          "succeeded": 9,
+          "pct": 100.0
+        },
+        "actions": {
+          "total": 90,
+          "succeeded": 82,
+          "pct": 91.1
+        }
+      }
+    },
+    "byConfigType": [
+      {
+        "action_type": "NAVIGATION",
+        "V1": {
+          "total": 46,
+          "succeeded": 36,
+          "pct": 78.3
+        },
+        "V2": {
+          "total": 26,
+          "succeeded": 23,
+          "pct": 88.5
+        }
+      },
+      {
+        "action_type": "VISUAL_INSPECTION",
+        "V1": {
+          "total": 50,
+          "succeeded": 44,
+          "pct": 88.0
+        },
+        "V2": {
+          "total": 18,
+          "succeeded": 18,
+          "pct": 100.0
+        }
+      },
+      {
+        "action_type": "THERMAL_INSPECTION",
+        "V1": {
+          "total": 31,
+          "succeeded": 24,
+          "pct": 77.4
+        },
+        "V2": {
+          "total": 18,
+          "succeeded": 18,
+          "pct": 100.0
+        }
+      },
+      {
+        "action_type": "ACOUSTIC_INSPECTION",
+        "V1": {
+          "total": 28,
+          "succeeded": 19,
+          "pct": 67.9
+        },
+        "V2": {
+          "total": 15,
+          "succeeded": 11,
+          "pct": 73.3
+        }
+      },
+      {
+        "action_type": "GAUGE_READING",
+        "V1": {
+          "total": 25,
+          "succeeded": 16,
+          "pct": 64.0
+        },
+        "V2": {
+          "total": 13,
+          "succeeded": 12,
+          "pct": 92.3
+        }
+      }
+    ],
+    "byLocation": [
+      {
+        "location_id": "WP01",
+        "location_name": "Main Entrance",
+        "actions": {
+          "total": 20,
+          "succeeded": 17,
+          "pct": 85.0
+        },
+        "problems": 3,
+        "nav_failure_pct": 20.0
+      },
+      {
+        "location_id": "WP02",
+        "location_name": "Electrical Room",
+        "actions": {
+          "total": 13,
+          "succeeded": 9,
+          "pct": 69.2
+        },
+        "problems": 3,
+        "nav_failure_pct": 50.0
+      },
+      {
+        "location_id": "WP03",
+        "location_name": "Cooling Loop",
+        "actions": {
+          "total": 15,
+          "succeeded": 11,
+          "pct": 73.3
+        },
+        "problems": 3,
+        "nav_failure_pct": 50.0
+      },
+      {
+        "location_id": "WP04",
+        "location_name": "Pump Bay",
+        "actions": {
+          "total": 18,
+          "succeeded": 14,
+          "pct": 77.8
+        },
+        "problems": 1,
+        "nav_failure_pct": 0.0
+      },
+      {
+        "location_id": "WP05",
+        "location_name": "Pipe Gallery",
+        "actions": {
+          "total": 43,
+          "succeeded": 32,
+          "pct": 74.4
+        },
+        "problems": 8,
+        "nav_failure_pct": 28.0
+      },
+      {
+        "location_id": "WP06",
+        "location_name": "Compressor Area",
+        "actions": {
+          "total": 17,
+          "succeeded": 15,
+          "pct": 88.2
+        },
+        "problems": 2,
+        "nav_failure_pct": 16.7
+      },
+      {
+        "location_id": "WP07",
+        "location_name": "Control Room Corridor",
+        "actions": {
+          "total": 18,
+          "succeeded": 16,
+          "pct": 88.9
+        },
+        "problems": 3,
+        "nav_failure_pct": 0.0
+      },
+      {
+        "location_id": "WP08",
+        "location_name": "Turbine Hall North",
+        "actions": {
+          "total": 14,
+          "succeeded": 12,
+          "pct": 85.7
+        },
+        "problems": 2,
+        "nav_failure_pct": 0.0
+      },
+      {
+        "location_id": "WP09",
+        "location_name": "Turbine Hall South",
+        "actions": {
+          "total": 22,
+          "succeeded": 14,
+          "pct": 63.6
+        },
+        "problems": 6,
+        "nav_failure_pct": 25.0
+      },
+      {
+        "location_id": "WP10",
+        "location_name": "Valve Station",
+        "actions": {
+          "total": 12,
+          "succeeded": 11,
+          "pct": 91.7
+        },
+        "problems": 2,
+        "nav_failure_pct": 0.0
+      },
+      {
+        "location_id": "WP11",
+        "location_name": "Battery Room",
+        "actions": {
+          "total": 22,
+          "succeeded": 20,
+          "pct": 90.9
+        },
+        "problems": 3,
+        "nav_failure_pct": 0.0
+      },
+      {
+        "location_id": "WP12",
+        "location_name": "Heat Exchanger Area",
+        "actions": {
+          "total": 14,
+          "succeeded": 13,
+          "pct": 92.9
+        },
+        "problems": 1,
+        "nav_failure_pct": 50.0
+      },
+      {
+        "location_id": "WP13",
+        "location_name": "Warehouse Corridor",
+        "actions": {
+          "total": 16,
+          "succeeded": 16,
+          "pct": 100.0
+        },
+        "problems": 1,
+        "nav_failure_pct": 0.0
+      },
+      {
+        "location_id": "WP14",
+        "location_name": "Auxiliary Systems Bay",
+        "actions": {
+          "total": 10,
+          "succeeded": 10,
+          "pct": 100.0
+        },
+        "problems": 0,
+        "nav_failure_pct": 0.0
+      },
+      {
+        "location_id": "WP15",
+        "location_name": "Inspection Dock",
+        "actions": {
+          "total": 16,
+          "succeeded": 11,
+          "pct": 68.8
+        },
+        "problems": 2,
+        "nav_failure_pct": 0.0
+      }
+    ],
+    "batteryBuckets": [
+      {
+        "label": "<20%",
+        "min": 0,
+        "max": 19,
+        "actions": {
+          "total": 11,
+          "succeeded": 3,
+          "pct": 27.3
+        }
+      },
+      {
+        "label": "20-40%",
+        "min": 20,
+        "max": 39,
+        "actions": {
+          "total": 60,
+          "succeeded": 43,
+          "pct": 71.7
+        }
+      },
+      {
+        "label": "40-60%",
+        "min": 40,
+        "max": 59,
+        "actions": {
+          "total": 73,
+          "succeeded": 63,
+          "pct": 86.3
+        }
+      },
+      {
+        "label": "60-80%",
+        "min": 60,
+        "max": 79,
+        "actions": {
+          "total": 96,
+          "succeeded": 86,
+          "pct": 89.6
+        }
+      },
+      {
+        "label": "80-100%",
+        "min": 80,
+        "max": 100,
+        "actions": {
+          "total": 30,
+          "succeeded": 26,
+          "pct": 86.7
+        }
+      }
+    ],
+    "byActionType": [
+      {
+        "action_type": "NAVIGATION",
+        "actions": {
+          "total": 72,
+          "succeeded": 59,
+          "pct": 81.9
+        }
+      },
+      {
+        "action_type": "VISUAL_INSPECTION",
+        "actions": {
+          "total": 68,
+          "succeeded": 62,
+          "pct": 91.2
+        }
+      },
+      {
+        "action_type": "THERMAL_INSPECTION",
+        "actions": {
+          "total": 49,
+          "succeeded": 42,
+          "pct": 85.7
+        }
+      },
+      {
+        "action_type": "ACOUSTIC_INSPECTION",
+        "actions": {
+          "total": 43,
+          "succeeded": 30,
+          "pct": 69.8
+        }
+      },
+      {
+        "action_type": "GAUGE_READING",
+        "actions": {
+          "total": 38,
+          "succeeded": 28,
+          "pct": 73.7
+        }
+      }
+    ],
+    "failureCauses": [
+      {
+        "failure_type": "READING_UNRELIABLE",
+        "count": 14
+      },
+      {
+        "failure_type": "SENSOR_TIMEOUT",
+        "count": 12
+      },
+      {
+        "failure_type": "TARGET_NOT_DETECTED",
+        "count": 7
+      },
+      {
+        "failure_type": "LOCALIZATION_FAILURE",
+        "count": 6
+      },
+      {
+        "failure_type": "COMMUNICATION_LOSS",
+        "count": 4
+      },
+      {
+        "failure_type": "SIGNAL_NOISE",
+        "count": 3
+      },
+      {
+        "failure_type": "OBSTACLE_DETECTION",
+        "count": 2
+      },
+      {
+        "failure_type": "PATH_BLOCKED",
+        "count": 1
+      }
+    ],
+    "repeatAssets": [
+      {
+        "asset_id": "PANEL-212",
+        "asset_name": "Electrical Panel 12",
+        "problems": 5
+      },
+      {
+        "asset_id": "HX-204",
+        "asset_name": "Heat Exchanger 04",
+        "problems": 4
+      },
+      {
+        "asset_id": "HX-208",
+        "asset_name": "Heat Exchanger 08",
+        "problems": 4
+      },
+      {
+        "asset_id": "PANEL-215",
+        "asset_name": "Electrical Panel 15",
+        "problems": 4
+      },
+      {
+        "asset_id": "HX-201",
+        "asset_name": "Heat Exchanger 01",
+        "problems": 3
+      },
+      {
+        "asset_id": "PANEL-203",
+        "asset_name": "Electrical Panel 03",
+        "problems": 3
+      },
+      {
+        "asset_id": "HX-210",
+        "asset_name": "Heat Exchanger 10",
+        "problems": 3
+      },
+      {
+        "asset_id": "PANEL-211",
+        "asset_name": "Electrical Panel 11",
+        "problems": 3
+      },
+      {
+        "asset_id": "PUMP-205",
+        "asset_name": "Pump 05",
+        "problems": 2
+      },
+      {
+        "asset_id": "HX-217",
+        "asset_name": "Heat Exchanger 17",
+        "problems": 2
+      },
+      {
+        "asset_id": "PANEL-218",
+        "asset_name": "Electrical Panel 18",
+        "problems": 2
+      }
+    ],
+    "soWhat": {}
+  },
+  "insight_checks": {
+    "compare": {
+      "api_matches": true,
+      "fixture_matches": true
+    },
+    "byConfigType": {
+      "api_matches": true,
+      "fixture_matches": true
+    },
+    "byLocation": {
+      "api_matches": true,
+      "fixture_matches": true
+    },
+    "batteryBuckets": {
+      "api_matches": true,
+      "fixture_matches": true
+    },
+    "byActionType": {
+      "api_matches": true,
+      "fixture_matches": true
+    },
+    "failureCauses": {
+      "api_matches": true,
+      "fixture_matches": true
+    },
+    "repeatAssets": {
+      "api_matches": true,
+      "fixture_matches": true
+    },
+    "soWhat": {
+      "api_matches": true,
+      "fixture_matches": true
+    }
+  },
+  "api_record_errors": [],
+  "api_mission_count": 27,
+  "asset_endpoints_with_actions": 20,
+  "asset_actions_away_from_home": 61,
+  "error_statuses": {
+    "/api/missions/UNKNOWN": 404,
+    "/api/assets/UNKNOWN": 404,
+    "/api/replay?mission=M014&speed=999": 400,
+    "/api/replay?mission=UNKNOWN": 404
+  },
+  "pages": {
+    "/missions": {
+      "status": 200,
+      "placeholder": false,
+      "mission_links": 27
+    },
+    "/missions/M001": {
+      "status": 200,
+      "placeholder": false
+    },
+    "/missions/M014": {
+      "status": 200,
+      "placeholder": false
+    },
+    "/missions/M027": {
+      "status": 200,
+      "placeholder": false
+    },
+    "/assets/PANEL-212": {
+      "status": 200,
+      "placeholder": false
+    },
+    "/assets/HX-217": {
+      "status": 200,
+      "placeholder": false
+    },
+    "/insights": {
+      "status": 200,
+      "placeholder": false
+    },
+    "/live?mission=M014": {
+      "status": 200,
+      "placeholder": false
+    }
+  }
+}
