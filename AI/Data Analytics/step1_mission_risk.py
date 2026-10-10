@@ -155,7 +155,7 @@ def main(data_dir: Path):
     ]
 
     with OUTPUT_PATH.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(ranked)
 
