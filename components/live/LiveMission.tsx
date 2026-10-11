@@ -4,13 +4,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { SeverityBadge } from "@/components/ui/SeverityBadge";
-import { SEVERITY_LABEL, titleCase } from "@/lib/format";
+import { SEVERITY_LABEL } from "@/lib/format";
 import { clockOf, deriveLive, msOf, stepSentence, timelineFromMission } from "@/lib/replay";
 import { SERIOUS } from "@/lib/report";
 import { DEFAULT_HEAT_C, MAX_HEAT_C, NO_SCENARIO, scenarioState, withScenario, type Scenario } from "@/lib/scenarios";
 import type { MissionDetail } from "@/lib/types";
 import Image from "next/image";
 import { FacilityMap, type MapLayers } from "@/components/map/FacilityMap";
+import { MissionPicker, type MissionOption } from "./MissionPicker";
 import { ReplayBar } from "./ReplayBar";
 import { RightRail } from "./RightRail";
 import { useReplay } from "./useReplay";
@@ -25,7 +26,18 @@ const LAYERS: { id: MapLayers; label: string }[] = [
  * `at` ("02:14:00", plant time) opens the replay paused at that moment, e.g. to demo or screenshot a state.
  * `scenario` opens it with Map & Sim's what-ifs on (?heat=16&obstacle=1).
  */
-export function LiveMission({ mission, at, scenario: initial = NO_SCENARIO }: { mission: MissionDetail; at?: string; scenario?: Scenario }) {
+export function LiveMission({
+  mission,
+  at,
+  scenario: initial = NO_SCENARIO,
+  missions = [],
+}: {
+  mission: MissionDetail;
+  at?: string;
+  scenario?: Scenario;
+  /** Every mission the operator can switch the replay to (the top bar's picker). */
+  missions?: MissionOption[];
+}) {
   const timeline = useMemo(() => timelineFromMission(mission), [mission]);
   const plan = useMemo(() => [...mission.actions].sort((a, b) => a.sequence - b.sequence), [mission]);
   const atMs = at ? msOf(`${mission.start_time.slice(0, 10)}T${at}`) : NaN;
@@ -60,7 +72,7 @@ export function LiveMission({ mission, at, scenario: initial = NO_SCENARIO }: { 
 
   return (
     <div className="flex flex-col gap-6 px-4 pt-6 pb-6 md:px-6">
-      <LiveTopBar mission={mission} live={live} status={replay.status} speed={replay.speed} />
+      <LiveTopBar mission={mission} missions={missions} live={live} status={replay.status} speed={replay.speed} />
 
       <div className="grid gap-6 lg:min-h-[676px] lg:grid-cols-[minmax(0,1fr)_424px]">
         <section aria-labelledby="map-heading" className="sticker flex flex-col overflow-hidden bg-surface">
@@ -176,14 +188,16 @@ function Legend({ src, label }: { src: string; label: string }) {
   );
 }
 
-/** Mission chip, replay state and run tally, rendered into the shared top bar's slot. */
+/** Mission picker, replay state and run tally, rendered into the shared top bar's slot. */
 function LiveTopBar({
   mission,
+  missions,
   live,
   status,
   speed,
 }: {
   mission: MissionDetail;
+  missions: MissionOption[];
   live: ReturnType<typeof deriveLive>;
   status: "playing" | "paused" | "ended";
   speed: number;
@@ -191,14 +205,10 @@ function LiveTopBar({
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => setSlot(document.getElementById("topbar-slot")), []);
   if (!slot) return null;
-  // "Autowalk Inspection Route 14" -> "Autowalk Route 14", as in the Figma chip.
-  const name = mission.mission_name.replace(/\bInspection\s+/, "");
   const state = status === "playing" ? `Reconstructed replay ${speed}×` : status === "paused" ? "Replay paused" : "Replay finished";
   return createPortal(
     <>
-      <span className="hidden truncate rounded-pill border-[1.5px] border-line-strong px-2.5 py-1.5 text-fg-muted type-mono sm:inline">
-        {mission.mission_id} · {name} · {titleCase(mission.scenario)} {mission.configuration_version}
-      </span>
+      <MissionPicker current={mission} missions={missions} />
       <span className="hidden items-center gap-2 type-mono md:flex">
         <span className={`size-2 rounded-full ${status === "playing" ? "bg-line-strong motion-safe:animate-pulse" : "bg-fg-subtle"}`} aria-hidden />
         {state}
