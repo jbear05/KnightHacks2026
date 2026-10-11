@@ -103,9 +103,9 @@ npm run dev
 | Role | Person |
 |---|---|
 | Design & Frontend | Jair Garcia ([@jbear05](https://github.com/jbear05)) |
-| Map & Simulation | [@IliasCoder](https://github.com/IliasCoder) |
-| Backend & Database | [@FredoC7](https://github.com/FredoC7) |
-| Data & AI | Rayan Hannani |
+| Map & Simulation | (Ilias Bahau)[@IliasCoder](https://github.com/IliasCoder) |
+| Backend & Database | Alfredo Cuevas [@FredoC7](https://github.com/FredoC7) |
+| Data & AI | Rayan Hannani [@Rayan15-07](https://github.com/Rayan15-07)  |
 
 ## Want the technical details?
 
