@@ -14,7 +14,7 @@ export const missionLabel = (m: MissionOption) =>
 
 /**
  * The top bar's mission chip, as a picker: switching replays another of the recorded missions.
- * Keeps the what-if params (?heat, ?obstacle) and drops ?at, which is a time in the old mission.
+ * Keeps the what-if params (?heat, ?cold, ?obstacle, ?outdoor, ?wx) and drops ?at, which is a time in the old mission.
  */
 export function MissionPicker({ current, missions }: { current: MissionOption; missions: MissionOption[] }) {
   const router = useRouter();

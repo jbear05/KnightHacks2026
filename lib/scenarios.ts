@@ -1,7 +1,8 @@
 // What-if scenarios on the Live Mission replay, from Map & Sim's engine (map-sim/src/sim, IliasCoder):
 // a heat wave (air temperature, SPOT and charger limits, equipment running hotter, shorter component
 // life) and an obstacle in front of the dock that SPOT has to walk around, plus component-life alerts
-// (always on). Only map-sim's SIMULATED alerts are shown: what comes from the data is already on screen.
+// (always on). The cold snap is the heat wave's mirror, built here on map-sim's air model and the
+// SPOT user guide's lower limits (map-sim's weather check uses the same -20°C). Only map-sim's SIMULATED alerts are shown: what comes from the data is already on screen.
 import mapData from "@/map-sim/data/map.json";
 import missionsData from "@/map-sim/data/missions.json";
 import {
@@ -15,20 +16,67 @@ import {
   pointAlong,
   polylineLength,
 } from "@/map-sim/src/sim/index.ts";
-import type { ComponentHealth, FeedAlert, MapData, MissionData, Pt, Rect, Stop } from "@/map-sim/src/sim/index.ts";
+import type { Alert, ComponentHealth, FeedAlert, MapData, MissionData, Pt, Rect, Stop } from "@/map-sim/src/sim/index.ts";
 import { START_LOCATION, type FeedRow, type LiveState, type QueueItem } from "@/lib/replay";
 
 export interface Scenario {
   /** Heat wave strength in °C on top of normal indoor air; 0 = off. */
   heatC: number;
+  /** Cold snap strength in °C below normal indoor air; 0 or missing = off. Ignored while the heat wave is on. */
+  coldC?: number;
   /** An obstacle is left in front of the dock (WP15). */
   obstacle: boolean;
 }
 
-export const NO_SCENARIO: Scenario = { heatC: 0, obstacle: false };
+export const NO_SCENARIO: Scenario = { heatC: 0, coldC: 0, obstacle: false };
 /** map-sim's sandbox default. */
 export const DEFAULT_HEAT_C = 16;
 export const MAX_HEAT_C = 30;
+/** Enough for the corridors to drop past SPOT's -20°C limit in the second half of a mission. */
+export const DEFAULT_COLD_C = 55;
+export const MAX_COLD_C = 70;
+
+/** SPOT user guide: SPOT operates from -20°C, its charger from 0°C (map-sim's LIMITS has the upper ends). */
+export const COLD = { spotMinC: -20, chargerMinC: 0 };
+
+/**
+ * Cold snap (simulated): the heating fails in a winter storm. Same shape as map-sim's heat wave
+ * (heatWaveExtraC): the air drops by half the strength at the start and the full strength by the end,
+ * from map-sim's indoor air (machinery rooms still run warmer than corridors).
+ */
+export function coldAmbientC(stop: Pick<Stop, "zone" | "floor">, progress: number, coldC: number): number {
+  return ambientC(stop, progress, 0) - Math.max(0, coldC) * (0.5 + 0.5 * progress);
+}
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/** Cold check before SPOT walks to a stop, like map-sim's heatAlert: critical = skip the stop. */
+export function coldAlert(stop: Stop, progress: number, coldC: number, actionId: string | null = null): Alert | null {
+  if (coldC <= 0) return null;
+  const c = round1(coldAmbientC(stop, progress, coldC));
+  const base = { simulated: true, location_id: stop.id, action_id: actionId };
+  if (c < COLD.spotMinC) return {
+    ...base, id: `cold-stop-${stop.id}-${actionId}`, level: "critical", title: "Too cold for SPOT: stop skipped",
+    detail: `${stop.name} is at ${c}°C, below SPOT's ${COLD.spotMinC}°C operating limit (SPOT user guide). SPOT skips this stop.`,
+  };
+  if (c < COLD.spotMinC + 5) return {
+    ...base, id: `cold-warn-${stop.id}-${actionId}`, level: "warning", title: "It's getting cold in here",
+    detail: `${stop.name} is at ${c}°C. SPOT's lower limit is ${COLD.spotMinC}°C (SPOT user guide).`,
+  };
+  return null;
+}
+
+/** Fires once when the dock is too cold for SPOT's charger. */
+export function dockColdAlert(dock: Stop, progress: number, coldC: number): Alert | null {
+  if (coldC <= 0) return null;
+  const c = round1(coldAmbientC(dock, progress, coldC));
+  if (c >= COLD.chargerMinC) return null;
+  return {
+    id: `cold-dock-${dock.id}`, level: "warning", simulated: true, location_id: dock.id, action_id: null,
+    title: "Dock too cold to charge",
+    detail: `${dock.name} is at ${c}°C, below the charger's ${COLD.chargerMinC}°C limit (SPOT user guide). SPOT can't recharge there until it warms up.`,
+  };
+}
 /** WP15 Inspection Dock is SPOT's charging dock (map-sim's assumption; the data doesn't say). */
 export const DOCK_ID = "WP15";
 
@@ -102,9 +150,11 @@ export function dockWalk(fromId: string): DockWalk | null {
 export interface ScenarioState {
   /** Simulated alerts raised so far, newest first (map-sim's AlertFeed order). */
   alerts: FeedAlert[];
-  /** Steps SPOT skips because the stop is above its 45°C limit. */
+  /** Steps SPOT skips because the stop is above its 45°C limit (heat wave) or below -20°C (cold snap). */
   skipped: Set<string>;
-  /** Simulated air temperature where SPOT is headed, °C; null when the heat wave is off. */
+  /** Why steps are skipped: whichever temperature what-if is on. */
+  skipReason: "hot" | "cold";
+  /** Simulated air temperature where SPOT is headed, °C; null when neither temperature what-if is on. */
   airC: number | null;
 }
 
@@ -123,36 +173,59 @@ export function scenarioState(
   ended: boolean,
   now?: string,
 ): ScenarioState {
-  const empty: ScenarioState = { alerts: [], skipped: new Set(), airC: null };
+  const heatC = scenario.heatC;
+  const coldC = heatC > 0 ? 0 : (scenario.coldC ?? 0);
+  const skipReason = coldC > 0 ? "cold" : "hot";
+  const empty: ScenarioState = { alerts: [], skipped: new Set(), skipReason, airC: null };
   if (!DOCK) return empty;
   const run = new MissionRun(DATA, health(), STOPS, DOCK, missionId);
   const skipped = new Set<string>();
   run.actions.forEach((act, i) => {
     const isCurrent = current?.action_id === act.action_id;
     if (!finished.has(act.action_id) && !isCurrent) return;
-    const { skip } = run.beginAction(i, scenario.heatC);
+    const { skip: hot } = run.beginAction(i, heatC);
+    let skip = hot;
+    if (coldC > 0) {
+      const cold = coldAlert(STOPS[act.location_id], run.progress, coldC, act.action_id);
+      run.raise(dockColdAlert(DOCK, run.progress, coldC));
+      run.raise(cold);
+      skip ||= cold?.level === "critical";
+    }
     if (skip) skipped.add(act.action_id);
     if (scenario.obstacle && act.location_id === DOCK_ID) {
       const walk = skip ? null : dockWalk(fromStop(run.actions, i, skipped));
       const seen = finished.has(act.action_id) || (isCurrent && (current.inspecting || current.progress >= (walk?.seeAt ?? 1)));
       if (walk && seen) run.raise(dockObstacleAlert(DOCK, walk.rerouted));
     }
-    if (finished.has(act.action_id) && !skip) run.completeAction(i, scenario.heatC);
+    if (finished.has(act.action_id) && !skip) run.completeAction(i, heatC);
   });
   if (ended) run.finish();
   const here = STOPS[current?.location_id ?? ""] ?? null;
   return {
     alerts: run.feed.list.filter((a) => a.simulated).map((a) => (now && a.at > now ? { ...a, at: now } : a)),
     skipped,
-    airC: scenario.heatC > 0 && here ? Math.round(ambientC(here, run.progress, scenario.heatC)) : null,
+    skipReason,
+    airC: !here
+      ? null
+      : heatC > 0
+        ? Math.round(ambientC(here, run.progress, heatC))
+        : coldC > 0
+          ? Math.round(coldAmbientC(here, run.progress, coldC))
+          : null,
   };
 }
 
-/** `?heat=16&obstacle=1` on /live, so a demo can open with a scenario on. */
-export function scenarioFromParams(heat?: string, obstacle?: string): Scenario {
-  const h = Number(heat);
+const clampParam = (v: string | undefined, max: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(0, Math.round(n))) : 0;
+};
+
+/** `?heat=16&obstacle=1` or `?cold=55` on /live, so a demo can open with a scenario on. Heat wins over cold. */
+export function scenarioFromParams(heat?: string, obstacle?: string, cold?: string): Scenario {
+  const heatC = clampParam(heat, MAX_HEAT_C);
   return {
-    heatC: Number.isFinite(h) ? Math.min(MAX_HEAT_C, Math.max(0, Math.round(h))) : 0,
+    heatC,
+    coldC: heatC > 0 ? 0 : clampParam(cold, MAX_COLD_C),
     obstacle: obstacle === "1" || obstacle === "true",
   };
 }
@@ -169,7 +242,7 @@ export function withScenario(live: LiveState, state: ScenarioState): LiveState {
     ? {
         ...live.current,
         fromLocationId: kept[kept.length - 1]?.action.location_id ?? START_LOCATION,
-        ...(sk.has(live.current.action.action_id) ? { phase: "skipping" as const, progress: 0 } : {}),
+        ...(sk.has(live.current.action.action_id) ? { phase: "skipping" as const, progress: 0, skipReason: state.skipReason } : {}),
       }
     : null;
   const items = state.alerts

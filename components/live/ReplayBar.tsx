@@ -12,7 +12,8 @@ import type { Replay, Speed } from "./useReplay";
 
 const SPEEDS: Speed[] = [1, 10, 60];
 
-export function ReplayBar({ replay, plan, results }: { replay: Replay; plan: Action[]; results: Map<string, boolean> }) {
+/** `locked`: why the replay can't play (outdoor mode, not safe to go out); play and the scrubber are disabled. */
+export function ReplayBar({ replay, plan, results, locked }: { replay: Replay; plan: Action[]; results: Map<string, boolean>; locked?: string }) {
   const span = Math.max(1, replay.end - replay.start);
   const pct = (t: number) => `${((t - replay.start) / span) * 100}%`;
   const mid = replay.start + span / 2;
@@ -23,7 +24,9 @@ export function ReplayBar({ replay, plan, results }: { replay: Replay; plan: Act
         type="button"
         onClick={replay.playing ? replay.pause : replay.play}
         aria-label={replay.playing ? "Pause replay" : "Play replay"}
-        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-line-strong text-white"
+        disabled={!!locked}
+        title={locked}
+        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-line-strong text-white disabled:opacity-40"
       >
         {replay.playing ? <Image src="/figma/icon-pause.svg" alt="" width={14} height={14} /> : <Play size={14} fill="currentColor" aria-hidden />}
       </button>
@@ -53,6 +56,7 @@ export function ReplayBar({ replay, plan, results }: { replay: Replay; plan: Act
           max={replay.end}
           step={1000}
           value={replay.clock}
+          disabled={!!locked}
           onChange={(e) => replay.seekTime(Number(e.target.value))}
           aria-label="Mission time"
           aria-valuetext={clockOf(replay.clock)}
