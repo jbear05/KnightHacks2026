@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import mission from "@/lib/mock/mission-M014.json";
 import { deriveLive, msOf, playedCount, timelineFromMission } from "@/lib/replay";
-import { dockWalk, fromStop, scenarioFromParams, scenarioState, withScenario } from "@/lib/scenarios";
+import { coldAmbientC, dockWalk, fromStop, scenarioFromParams, scenarioState, withScenario } from "@/lib/scenarios";
 import type { MissionDetail } from "@/lib/types";
 
 const m = mission as unknown as MissionDetail;
@@ -46,10 +46,53 @@ describe("what-if scenarios on M014", () => {
     expect(live.queue[0]).toMatchObject({ kind: "sim", level: "critical" });
   });
 
-  it("reads ?heat and ?obstacle", () => {
-    expect(scenarioFromParams("16", "1")).toEqual({ heatC: 16, obstacle: true });
-    expect(scenarioFromParams("99", undefined)).toEqual({ heatC: 30, obstacle: false });
-    expect(scenarioFromParams(undefined, "0")).toEqual({ heatC: 0, obstacle: false });
+  it("reads ?heat, ?cold and ?obstacle", () => {
+    expect(scenarioFromParams("16", "1")).toEqual({ heatC: 16, coldC: 0, obstacle: true });
+    expect(scenarioFromParams("99", undefined)).toEqual({ heatC: 30, coldC: 0, obstacle: false });
+    expect(scenarioFromParams(undefined, "0")).toEqual({ heatC: 0, coldC: 0, obstacle: false });
+    expect(scenarioFromParams(undefined, undefined, "55")).toEqual({ heatC: 0, coldC: 55, obstacle: false });
+    expect(scenarioFromParams(undefined, undefined, "999").coldC).toBe(70);
+    // heat and cold are one air temperature: heat wins
+    expect(scenarioFromParams("16", undefined, "55")).toEqual({ heatC: 16, coldC: 0, obstacle: false });
+  });
+});
+
+describe("cold snap on M014", () => {
+  it("cools the air from half to full strength, corridors colder than machinery rooms", () => {
+    expect(coldAmbientC({ zone: "ACCESS", floor: 1 }, 0, 40)).toBe(6);
+    expect(coldAmbientC({ zone: "ACCESS", floor: 1 }, 1, 40)).toBe(-14);
+    expect(coldAmbientC({ zone: "MECHANICAL", floor: 1 }, 1, 40)).toBe(-9);
+  });
+
+  it("skips stops below SPOT's -20°C limit and warns about the dock charger", () => {
+    const s = scenarioState("M014", { heatC: 0, coldC: 55, obstacle: false }, all, null, true);
+    expect(s.skipReason).toBe("cold");
+    expect(s.skipped.size).toBeGreaterThan(0);
+    expect(s.alerts.every((a) => a.simulated)).toBe(true);
+    expect(s.alerts.some((a) => a.title === "Too cold for SPOT: stop skipped")).toBe(true);
+    expect(s.alerts.some((a) => a.title === "Dock too cold to charge")).toBe(true);
+    expect(s.alerts.some((a) => a.title.startsWith("Too hot"))).toBe(false);
+  });
+
+  it("a mild cold snap only warns the charger, nothing is skipped", () => {
+    const s = scenarioState("M014", { heatC: 0, coldC: 30, obstacle: false }, all, null, true);
+    expect(s.skipped.size).toBe(0);
+    expect(s.alerts.some((a) => a.title === "Dock too cold to charge")).toBe(true);
+  });
+
+  it("ignores the cold snap while the heat wave is on", () => {
+    const hot = scenarioState("M014", { heatC: 16, obstacle: false }, all, null, true);
+    const both = scenarioState("M014", { heatC: 16, coldC: 55, obstacle: false }, all, null, true);
+    expect(both.alerts).toEqual(hot.alerts);
+    expect(both.skipReason).toBe("hot");
+  });
+
+  it("marks the current skipped step as too cold", () => {
+    const base = deriveLive(m, timelineFromMission(m), msOf(m.end_time!));
+    const s = scenarioState("M014", { heatC: 0, coldC: 70, obstacle: false }, all, null, true);
+    const skippedId = [...s.skipped][0];
+    const fake = { ...base, current: { action: plan.find((a) => a.action_id === skippedId)!, step: 1, phase: "walking" as const, fromLocationId: "WP01", arriveAt: 0, progress: 0.5 } };
+    expect(withScenario(fake, s).current).toMatchObject({ phase: "skipping", skipReason: "cold" });
   });
 });
 

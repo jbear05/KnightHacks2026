@@ -2,7 +2,7 @@
 // attention queue and event feed. Design & Frontend owns this; see contracts/live-mission-right-rail.md.
 import Image from "next/image";
 import Link from "next/link";
-import { FlaskConical } from "lucide-react";
+import { CloudSun, FlaskConical } from "lucide-react";
 import { SeverityBadge } from "@/components/ui/SeverityBadge";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ACTION_LABEL, ANOMALY_LABEL, assetOf, criticalityPhrase, FAILURE_LABEL, locationLabel, timeOf } from "@/lib/format";
@@ -40,7 +40,7 @@ function NowCard({ live, total, clock, start }: { live: LiveState; total: number
   const title = skipping ? "Step skipped" : a ? ACTION_LABEL[a.action_type] : live.ended ? "Mission finished" : "Waiting to start";
   const label = s ? `Now · step ${s.step} of ${total}` : live.ended ? `Done · ${total} of ${total} steps` : "Now";
   const sub = skipping && s && a
-    ? `Holding at ${locationLabel(s.fromLocationId)} · ${locationLabel(a.location_id)} is too hot`
+    ? `Holding at ${locationLabel(s.fromLocationId)} · ${locationLabel(a.location_id)} is too ${s.skipReason ?? "hot"}`
     : a
       ? `${locationLabel(a.location_id)}${asset ? ` · ${asset.asset_name}` : ""}`
       : live.ended
@@ -154,9 +154,10 @@ function ProblemRow({ item: { problem: p } }: { item: Extract<QueueItem, { kind:
   );
 }
 
-/** A what-if alert from Map & Sim's scenarios; always tagged so nobody mistakes it for data. */
+/** A what-if alert from Map & Sim's scenarios, or the outdoor forecast; always tagged so nobody mistakes it for data. */
 function SimRow({ item }: { item: Extract<QueueItem, { kind: "sim" }> }) {
   const critical = item.level === "critical";
+  const forecast = item.tag === "forecast";
   return (
     <>
       <p className={`truncate type-body-strong ${critical ? "text-critical" : "text-high"}`}>{item.title}</p>
@@ -167,8 +168,8 @@ function SimRow({ item }: { item: Extract<QueueItem, { kind: "sim" }> }) {
         <span
           className={`inline-flex shrink-0 items-center gap-1 rounded-badge border-[1.5px] border-line-strong px-2 py-1 type-badge ${critical ? "bg-failed-tint text-critical" : "bg-high-tint text-high"}`}
         >
-          <FlaskConical aria-hidden size={16} />
-          What-if
+          {forecast ? <CloudSun aria-hidden size={16} /> : <FlaskConical aria-hidden size={16} />}
+          {forecast ? "Forecast" : "What-if"}
         </span>
         <p className="text-fg-muted type-mono">{item.time}</p>
       </div>
@@ -205,6 +206,7 @@ const FEED_GLYPH: Record<FeedRow["glyph"], string> = {
   problem: "/figma/icon-alert-triangle-high.svg",
   spot: "/figma/glyph-spot.svg",
   sim: "",
+  weather: "",
 };
 
 function EventFeed({ rows }: { rows: FeedRow[] }) {
@@ -222,6 +224,8 @@ function EventFeed({ rows }: { rows: FeedRow[] }) {
             <span className="text-fg-subtle type-mono">{r.time}</span>
             {r.glyph === "sim" ? (
               <FlaskConical aria-label="What-if" size={14} strokeWidth={2.25} className="shrink-0 text-high" />
+            ) : r.glyph === "weather" ? (
+              <CloudSun aria-label="Weather" size={14} strokeWidth={2.25} className="shrink-0 text-fg-muted" />
             ) : (
               <Image src={FEED_GLYPH[r.glyph]} alt="" width={14} height={14} />
             )}

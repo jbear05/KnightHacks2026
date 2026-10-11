@@ -102,6 +102,8 @@ export interface StepState {
   arriveAt: number;
   /** 0..1 along the walk (1 while inspecting). */
   progress: number;
+  /** While skipping: the what-if made the stop too hot or too cold for SPOT (default hot). */
+  skipReason?: "hot" | "cold";
 }
 
 export interface StepResult {
@@ -113,13 +115,16 @@ export interface StepResult {
 export type QueueItem =
   | { kind: "problem"; key: string; problem: Problem }
   | { kind: "failed"; key: string; action: Action }
-  /** A what-if alert from Map & Sim's scenarios (heat wave, dock obstacle, component life). */
-  | { kind: "sim"; key: string; level: "warning" | "critical"; title: string; detail: string; time: string };
+  /**
+   * A what-if alert from Map & Sim's scenarios (heat wave, cold snap, dock obstacle, component life), or
+   * the outdoor weather check. tag "forecast" = today's real forecast, not a what-if.
+   */
+  | { kind: "sim"; key: string; level: "warning" | "critical"; title: string; detail: string; time: string; tag?: "what-if" | "forecast" };
 
 export interface FeedRow {
   key: string;
   time: string;
-  glyph: "next" | "bloom" | "blight" | "problem" | "spot" | "sim";
+  glyph: "next" | "bloom" | "blight" | "problem" | "spot" | "sim" | "weather";
   text: string;
   detail: string;
 }
@@ -284,7 +289,7 @@ function buildFeed(m: MissionDetail, events: LiveEvent[], current: StepState | n
 /** "Step 6 of 10 · walking to Control Room Corridor (WP07) for a gauge reading" */
 export function stepSentence(s: StepState, total: number): string {
   const where = locationLabel(s.action.location_id);
-  if (s.phase === "skipping") return `Step ${s.step} of ${total} · skipping ${where}: too hot for SPOT`;
+  if (s.phase === "skipping") return `Step ${s.step} of ${total} · skipping ${where}: too ${s.skipReason ?? "hot"} for SPOT`;
   const verb = s.phase === "walking" ? (s.progress > 0.8 ? "arriving at" : "walking to") : "at";
   return `Step ${s.step} of ${total} · ${verb} ${where} for ${withArticle(s.action.action_type)}`;
 }

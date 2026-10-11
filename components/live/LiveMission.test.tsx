@@ -91,3 +91,49 @@ describe("Live Mission skipped steps", () => {
     expect(container.querySelectorAll('[aria-label*=", serious finding recorded"]')).toHaveLength(2);
   });
 });
+
+describe("Live Mission cold snap and outdoor weather", () => {
+  it("turning the cold snap on turns the heat wave off", () => {
+    render(<LiveMission mission={m} at="02:15:00" scenario={{ heatC: 16, obstacle: false }} />);
+    const heat = screen.getByRole("checkbox", { name: "Heat wave" }) as HTMLInputElement;
+    const cold = screen.getByRole("checkbox", { name: "Cold snap" }) as HTMLInputElement;
+    expect([heat.checked, cold.checked]).toEqual([true, false]);
+    fireEvent.click(cold);
+    expect([heat.checked, cold.checked]).toEqual([false, true]);
+    expect(screen.getByText(/Air at WP07/)).toBeTruthy();
+  });
+
+  it("keeps SPOT in on a not-safe demo day and lets the operator edit the weather", () => {
+    const { container } = render(
+      <LiveMission mission={m} at="02:15:00" outdoor={{ on: true, place: "Chicago, IL", source: "demo", preset: "snow" }} />,
+    );
+    expect(screen.getByText(/Mission not started/)).toBeTruthy();
+    const wx = screen.getByRole("group", { name: "Outdoor weather check" });
+    expect(within(wx).getByText(/Not safe to go scan and scout today in Chicago, IL: snow or ice/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Play replay" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(container.querySelector("[data-spot-to]")?.getAttribute("data-spot-to")).not.toBe("WP07");
+    const queue = screen.getByRole("heading", { name: "Attention queue" }).closest("section")!;
+    expect(queue.textContent).toContain("Weather: not safe to go scan and scout");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Load a demo day" }), { target: { value: "sunny" } });
+    expect(within(wx).getByText("Safe to go scan and scout today in Chicago, IL.")).toBeTruthy();
+    // safe again: SPOT sets out from the start
+    expect(screen.queryByText(/Mission not started/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Pause replay" })).toBeTruthy();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Demo gusts in km/h" }), { target: { value: "90" } });
+    expect(within(wx).getByText(/gusts up to 90 km\/h/)).toBeTruthy();
+  });
+
+  it("goes ahead with a note when the live forecast can't be reached", async () => {
+    const real = globalThis.fetch;
+    globalThis.fetch = (() => Promise.reject(new Error("offline"))) as typeof fetch;
+    try {
+      render(<LiveMission mission={m} at="02:15:00" outdoor={{ on: true, place: "Orlando, FL", source: "live", preset: "storm" }} />);
+      expect(await screen.findByText(/Couldn't reach Open-Meteo \(offline\)/)).toBeTruthy();
+      expect((screen.getByRole("button", { name: "Play replay" }) as HTMLButtonElement).disabled).toBe(false);
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+});
