@@ -137,3 +137,16 @@ describe("Live Mission cold snap and outdoor weather", () => {
     }
   });
 });
+
+describe("Live Mission component card", () => {
+  it("opens map-sim's component health for a clicked stop and closes again", () => {
+    render(<LiveMission mission={m} at="02:15:00" />);
+    fireEvent.click(screen.getByRole("button", { name: /^WP09 Turbine Hall South,/ }));
+    const card = screen.getByRole("region", { name: "Components at WP09" });
+    expect(card.textContent).toContain("Turbine Hall South");
+    expect(card.textContent).toMatch(/Health \d+\/100/);
+    expect(card.textContent).toMatch(/left/);
+    fireEvent.click(within(card).getByRole("button", { name: "Close components" }));
+    expect(screen.queryByRole("region", { name: "Components at WP09" })).toBeNull();
+  });
+});

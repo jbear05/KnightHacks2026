@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import mission from "@/lib/mock/mission-M014.json";
 import { deriveLive, msOf, playedCount, timelineFromMission } from "@/lib/replay";
-import { coldAmbientC, dockWalk, fromStop, scenarioFromParams, scenarioState, withScenario } from "@/lib/scenarios";
+import { coldAmbientC, dockWalk, healthSoFar, fromStop, scenarioFromParams, scenarioState, withScenario } from "@/lib/scenarios";
 import type { MissionDetail } from "@/lib/types";
 
 const m = mission as unknown as MissionDetail;
@@ -11,7 +11,7 @@ const all = new Set(plan.map((a) => a.action_id));
 describe("what-if scenarios on M014", () => {
   it("shows only component-life alerts with no scenario on", () => {
     const s = scenarioState("M014", { heatC: 0, obstacle: false }, all, null, true);
-    expect(s.alerts.map((a) => a.title)).toEqual(["PANEL-215: about 14 months of life left"]);
+    expect(s.alerts.map((a) => a.title)).toEqual(["PANEL-215: about 16 months of life left"]);
     expect(s.skipped.size).toBe(0);
     expect(s.airC).toBeNull();
   });
@@ -54,6 +54,18 @@ describe("what-if scenarios on M014", () => {
     expect(scenarioFromParams(undefined, undefined, "999").coldC).toBe(70);
     // heat and cold are one air temperature: heat wins
     expect(scenarioFromParams("16", undefined, "55")).toEqual({ heatC: 16, coldC: 0, obstacle: false });
+  });
+});
+
+describe("component health so far", () => {
+  it("counts earlier missions and this mission's played steps only", () => {
+    expect(healthSoFar("M001", new Set()).size).toBe(0);
+    const before = healthSoFar("M014", new Set());
+    const after = healthSoFar("M014", all);
+    const later = healthSoFar("M027", new Set());
+    const n = (h: Map<string, { inspections: number }>) => [...h.values()].reduce((s, c) => s + c.inspections, 0);
+    expect(n(before)).toBeLessThan(n(after));
+    expect(n(after)).toBeLessThan(n(later));
   });
 });
 

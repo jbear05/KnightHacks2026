@@ -12,6 +12,7 @@ import { DEFAULT_PLACE, DEFAULT_PRESET, DEMO_PRESETS, safetyMessage, withForecas
 import type { MissionDetail } from "@/lib/types";
 import Image from "next/image";
 import { FacilityMap, type MapLayers } from "@/components/map/FacilityMap";
+import { ComponentCard } from "./ComponentCard";
 import { MissionPicker, type MissionOption } from "./MissionPicker";
 import { OutdoorWeather, useForecastCheck } from "./OutdoorWeather";
 import { ReplayBar } from "./ReplayBar";
@@ -231,6 +232,17 @@ export function LiveMission({
               skipped={[...sim.skipped]}
             />
           </div>
+
+          {selected && (
+            <div className="px-[18px]">
+              <ComponentCard
+                stopId={selected}
+                missionId={mission.mission_id}
+                finished={new Set(base.results.map((r) => r.action.action_id))}
+                onClose={() => setSelected(null)}
+              />
+            </div>
+          )}
 
           <div className="mt-auto flex flex-col px-[18px] pb-[18px]">
             <ul className="flex min-h-9 flex-wrap items-center gap-x-5 gap-y-1" aria-label="Equipment findings so far">
