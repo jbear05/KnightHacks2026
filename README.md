@@ -1,101 +1,112 @@
 # Watchdog
 
-KnightHacks 2026 · NextEra Energy SPOT Management Dashboard track. An operator console that tells you what a SPOT inspection mission actually found, not just that it "completed".
+**A control room for SPOT, the four-legged inspection robot.** Built at KnightHacks 2026 for the NextEra Energy "SPOT Management Dashboard" challenge.
 
-All data is synthetic and fictional, supplied by NextEra Energy for KnightHacks 2026.
+**Try it online:** https://knight-hacks2026.vercel.app
 
-## Two ways to run it
+## What problem does it solve?
 
-| Mode | What you need | What you get |
-|---|---|---|
-| **Mock** (default) | Node only | Pages read the kit fixtures in `lib/mock/` (all 27 missions, 20 assets, Insights). A yellow banner says so. Operator decisions last only until the page reloads; nothing is written anywhere. |
-| **Real API** | Node, Postgres, the challenge kit's `02_DATA` | Pages read the Express API in `backend/`. Decisions are saved in Postgres and survive reloads. |
+Power plants send robots like Boston Dynamics' SPOT on walking routes to read gauges, take heat and sound measurements, and photograph equipment. When a route ends, the robot usually reports one word: "completed". That word hides a lot. A "completed" route can still have skipped stops, readings that can't be trusted, and serious problems with the equipment it looked at.
 
-## Frontend
+Watchdog reads everything the robot recorded and tells the person on duty, in plain language:
 
-Requires Node 20+ (CI uses 22). Run from the repository root:
+- what the robot actually found on each route,
+- which problems need a human decision first,
+- and which patterns repeat across many routes (stops that keep failing, equipment that keeps showing up, settings that work better).
 
-```bash
-npm ci
-npm run dev        # http://localhost:3000 → /live; the mission index is /missions
-```
+## What you can see
 
-For real-API mode, copy `.env.example` to `.env.local` before `npm run dev`:
-
-| Variable | Meaning |
+| Screen | What it shows |
 |---|---|
-| `NEXT_PUBLIC_USE_MOCK` | `false` reads the API. Unset or any other value uses the fixtures. |
-| `NEXT_PUBLIC_API_BASE` | The API's origin, e.g. `http://localhost:3001`. Required in real-API mode: this Next app has no `/api` routes, so without it requests go to its own origin and 404. |
+| **Live** | A cartoon map of the plant with SPOT walking its route, stop by stop, as it happened. A side panel lists what it is doing and anything that needs attention. You can also try "what if" situations, like a heat wave or a box blocking the charging dock, and check whether today's weather is safe for an outdoor route. |
+| **Missions** | Every route the robot walked, with search and filters. Routes marked "completed" that still had problems are flagged. |
+| **Mission report** | One route explained: what went wrong, why, how serious it is, and buttons for the operator to choose what to do (send a technician, keep watching, or dismiss). |
+| **Equipment page** | The history of one piece of equipment: its readings over time, past problems, and a sample inspection photo. |
+| **Insights** | The big picture across all routes: where problems cluster on the map, which stops fail most, how battery level relates to failures, and how two robot software versions compare. |
 
-Both are `NEXT_PUBLIC_`, so they are compiled into the browser bundle: never put a secret in them. The database URL lives only in `backend/.env`. `NEXT_PUBLIC_*` values are read at build time, so restart `npm run dev` (or rebuild) after changing them.
+All plant data is fictional. NextEra Energy supplied it for the hackathon; no real plant, robot or equipment is shown.
 
-Checks:
+## Run it on your own computer
+
+You only need this if you want to run your own copy. The link above works without installing anything.
+
+### 1. Install the tools (once)
+
+- **Node.js** version 20 or newer, from https://nodejs.org (choose the "LTS" download). It includes `npm`, which installs the rest.
+- **Git**, from https://git-scm.com, to download the code. (Or skip Git: on the GitHub page click **Code → Download ZIP** and unzip it.)
+
+### 2. Download the code
+
+Open a terminal (on Windows: PowerShell; on Mac: Terminal) and run:
 
 ```bash
-npm run lint
-npx tsc --noEmit
-npm test           # vitest: filters, replay sync, review states, Insights wording, summaries, API helpers
-npm run build      # stop `npm run dev` first: both write to .next/
+git clone https://github.com/jbear05/KnightHacks2026.git
+cd KnightHacks2026
 ```
 
-## Backend and database
-
-See [`backend/README.md`](backend/README.md) for variables, troubleshooting and endpoints. Short version, from `backend/`:
+### 3. Start it with the built-in sample data (easiest)
 
 ```bash
 npm ci
-cp .env.example .env                 # then set DATABASE_URL
-npm run migrate                      # schema.sql, then 002_create_problems_view.sql
-npm run seed -- "../SPOT_KnightHacks_Challenge_Kit Part One/02_DATA"
-npm run dev                          # http://localhost:3001
+npm run dev
 ```
 
-Then set `NEXT_PUBLIC_USE_MOCK=false` and `NEXT_PUBLIC_API_BASE=http://localhost:3001` in the root `.env.local` and restart the frontend.
+The first command downloads what the app needs and takes a few minutes. When the second one prints `Ready`, open **http://localhost:3000** in your browser. To stop it, press `Ctrl + C` in the terminal.
 
-## Deployment
+In this mode a yellow "Mock data mode" banner at the top reminds you that you are looking at sample data. Every screen works, but choices you make (like "send a technician") are forgotten when you reload the page.
 
-- **API (Railway).** Project `watchdog-api`, service `api`, deployed from `backend/`, at `https://api-production-efbcb.up.railway.app`. It reads the team's Neon database through the service's `DATABASE_URL` variable. Steps in [`backend/README.md`](backend/README.md#deployment).
-- **Frontend (Vercel).** `vercel.json` runs `npm ci` and `npm run build`. The Vercel project sets `NEXT_PUBLIC_USE_MOCK=false` and `NEXT_PUBLIC_API_BASE=https://api-production-efbcb.up.railway.app` for Production and Preview, so deployments read the Railway API. Without those variables a deployment runs in mock mode and shows the mock banner. `NEXT_PUBLIC_*` values are baked in at build time, so redeploy after changing them.
-- Decisions saved on the hosted site are written to the shared Neon database.
+### 4. Optional: connect it to a real database
 
-## How the screens use the data
+This makes the app read from a database and remember the operator's choices. It takes about ten minutes and needs two extra things:
 
-- **Missions** (`/missions`) lists every run with date, configuration, status, failed steps and serious findings, with search and filters that combine. A run SPOT called "completed" that still had failed steps or high/critical findings is marked "with issues".
-- **Mission report** (`/missions/M014`) leads with a summary built from the mission's records: status, each failed step and its cause, serious findings, questionable readings (equipment readings kept apart from robot localization telemetry) and battery endpoints. This summary is the authoritative one.
-- **Live** (`/live?mission=M014`, `&at=02:15:00` opens paused) is a reconstructed replay: rebuilt from the mission's recorded actions, timestamps and findings, with walking paths simulated between stops. The kit's original `replay.ndjson` covers M001–M023; M024–M027 have no original log and the page says so. One clock (`components/live/useReplay.ts`) drives the map, status panel, queue and feed.
-- **Asset detail** (`/assets/PANEL-212`) shows equipment readings, past findings and failed steps. Localization readings are robot telemetry and are never charted as equipment health.
-- **Insights** (`/insights`) shows aggregates with their denominators. Differences between V1 and V2 are observed associations, not causes; the 20% docking line is a suggested heuristic from 11 low-battery steps.
+- **A PostgreSQL database.** A free one from https://neon.tech works. Copy its connection link; it starts with `postgresql://`. Team members can use the team's existing Neon database, which already has the data loaded, and skip the `migrate` and `seed` lines below.
+- **The challenge data.** NextEra's kit isn't stored in this repository. Put the folder `SPOT_KnightHacks_Challenge_Kit Part One` from the kit inside the `KnightHacks2026` folder.
 
-### Findings, review and decisions
-
-- A **recorded finding** is any anomaly row. Historical totals never change.
-- A finding is **awaiting review** when the data flags it for operator review (`operator_review_required`, true for exactly the high and critical rows) and no decision has been saved (`decision === null`).
-- A **saved decision** (dispatch, watch or dismiss) records the operator's choice. It does not notify a technician or mark the equipment fixed.
-
-### Optional AI wording
-
-The report can also draft prose with `Falconsai/text_summarization` (Apache-2.0) through Transformers.js, in the browser, with no API key. The first draft downloads the model from Hugging Face. The draft is shown under the record summary and never replaces it. Before it is shown, every number and record ID in it must appear in that mission's model input (`lib/mission-summary-grounding.ts`); written-out numbers and fractions are rejected. That check cannot tell whether a number is attached to the right field, so a draft can pass it and still be wrong. If the model fails or the draft is rejected, the record summary is unaffected.
-
-## Fixtures and checks
-
-Regenerate the fixtures from the kit (read-only on the CSVs):
+Start the data server (the "backend") in one terminal:
 
 ```bash
-node scripts/build-insights-mock.mjs "SPOT_KnightHacks_Challenge_Kit Part One/02_DATA"   # insights.json, missions.json
-python lib/mock/build_assets.py "SPOT_KnightHacks_Challenge_Kit Part One/02_DATA"        # assets.json
-python lib/mock/build_missions.py "SPOT_KnightHacks_Challenge_Kit Part One/02_DATA"      # missions-detail.json (checks M014 first)
-python scripts/check-mission-fixture.py "SPOT_KnightHacks_Challenge_Kit Part One/02_DATA" # M014 fixture vs CSVs
-python audit/final-check.py          # CSVs vs the running API (localhost:3001) and fixtures
+cd backend
+npm ci
+cp .env.example .env
 ```
 
-## Layout
+On Windows PowerShell use `copy .env.example .env` instead of `cp`. Open the new file `backend/.env` in a text editor and paste your database link after `DATABASE_URL=`. Then:
 
-- `contracts/`: shared types and API contract (`lib/types.ts` re-exports `contracts/types.ts`).
-- `app/`: Next.js App Router pages and the app shell (top bar, side nav, synthetic-data footer).
-- `components/`: screens by area (`missions/`, `report/`, `live/`, `asset/`, `insights/`, `map/`) and `ui/` design-system pieces.
-- `lib/`: API helpers, derived numbers and wording (pure functions with tests), labels (`format.ts`), fixtures.
-- `backend/`: Express API, SQL schema, migrate and seed scripts.
-- `map-sim/`: route finding and SPOT animation used by the Live map.
-- `public/figma/`: SVGs exported from the Figma file; `public/inspections/`: NextEra's sample inspection photos.
+```bash
+npm run migrate
+npm run seed -- "../SPOT_KnightHacks_Challenge_Kit Part One/02_DATA"
+npm run dev
+```
 
-Design source of truth: the Watchdog Figma file (Mission Report / Desktop, node 7:161). Colour and type tokens live in `app/globals.css` under the same names as the Figma variables.
+`migrate` creates the tables and `seed` loads the challenge data; you only run them once per database. Leave `npm run dev` running: the backend is now at http://localhost:3001.
+
+In a **second** terminal, from the `KnightHacks2026` folder, point the app at the backend and start it:
+
+```bash
+cp .env.example .env.local
+npm run dev
+```
+
+(Again, `copy` instead of `cp` on Windows.) Open http://localhost:3000. The yellow "Mock data mode" banner is gone, and operator choices now survive a reload. To go back to sample data, delete `.env.local` and restart `npm run dev`.
+
+### If something goes wrong
+
+| What you see | What to do |
+|---|---|
+| `npm` or `node` is "not recognized" | Node.js isn't installed, or the terminal was open before you installed it. Install it and open a new terminal. |
+| Port 3000 or 3001 "already in use" | The app is already running in another terminal. Stop it with `Ctrl + C`, or use the one that is running. |
+| Pages show "couldn't load" errors after step 4 | The backend isn't running, or `backend/.env` has the wrong database link. Check the first terminal for an error. |
+| `Missing dataset file` when seeding | The challenge folder isn't in the right place, or its name is different. It must be named exactly `SPOT_KnightHacks_Challenge_Kit Part One`. |
+
+## The team
+
+| Role | Person |
+|---|---|
+| Design & Frontend | Jair Garcia ([@jbear05](https://github.com/jbear05)) |
+| Map & Simulation | [@IliasCoder](https://github.com/IliasCoder) |
+| Backend & Database | [@FredoC7](https://github.com/FredoC7) |
+| Data & AI | Rayan Hannani |
+
+## Want the technical details?
+
+[ARCHITECTURE.md](ARCHITECTURE.md) explains how the pieces fit together, with a section for each role. The backend has its own guide in [backend/README.md](backend/README.md), and the map engine in [map-sim/README.md](map-sim/README.md).
