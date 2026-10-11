@@ -106,8 +106,8 @@ function Battery({ live }: { live: LiveState }) {
 
 function AttentionQueue({ items, missionId }: { items: QueueItem[]; missionId: string }) {
   return (
-    <section aria-labelledby="queue-heading" className="flex shrink-0 flex-col gap-1.5 border-b border-line px-5 py-3 lg:h-[304px]">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 lg:h-6">
+    <section aria-labelledby="queue-heading" className="flex shrink-0 flex-col gap-1.5 border-b border-line px-5 py-3 lg:h-[318px]">
+      <div className="flex shrink-0 flex-col gap-0.5">
         <h2 id="queue-heading" className="type-heading-md">
           Attention queue
         </h2>
@@ -120,7 +120,7 @@ function AttentionQueue({ items, missionId }: { items: QueueItem[]; missionId: s
       ) : (
         <ul className="-mx-5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-5">
           {items.map((it) => (
-            <li key={it.key} className="flex h-[76px] shrink-0 flex-col gap-[3px] border-b border-line pt-[5px]">
+            <li key={it.key} className="flex h-[76px] shrink-0 flex-col justify-center gap-[3px] border-b border-line last:border-b-0">
               {it.kind === "problem" ? <ProblemRow item={it} /> : it.kind === "sim" ? <SimRow item={it} /> : <FailedRow item={it} missionId={missionId} />}
             </li>
           ))}
