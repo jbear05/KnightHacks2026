@@ -209,6 +209,36 @@ describe("B. the real floor plan, all 210 stop pairs", () => {
     }
   });
 
+  test("changing floor climbs the stairs as drawn: leave at the top of one flight, arrive at the foot of the other", () => {
+    const flight = map.stairs.flight!;
+    const inside = (p: { x: number; y: number }, label: string) => {
+      const r = map.walk_rects!.find(w => w.label.startsWith(label))!;
+      return p.x >= r.x0 && p.x < r.x1 && p.y >= r.y0 && p.y < r.y1;
+    };
+    for (const [a, b] of pairs) {
+      if (a.floor === b.floor) continue;
+      const r = nav.route(a, b), up = a.floor === 1;
+      const end = r.legs[0].at(-1)!, start = r.legs[1][0];
+      assert.deepEqual([end.x, end.y], [flight[up ? "F1" : "F2"][1].x, flight[up ? "F1" : "F2"][1].y], `${a.id}->${b.id} leaves mid-floor`);
+      assert.deepEqual([start.x, start.y], [flight[up ? "F2" : "F1"][1].x, flight[up ? "F2" : "F1"][1].y], `${a.id}->${b.id} arrives mid-floor`);
+      assert.ok(inside(end, up ? "F1 stairs" : "F2 stairs") && inside(start, up ? "F2 stairs" : "F1 stairs"), `${a.id}->${b.id}`);
+    }
+  });
+
+  test("stairwells are walled in: open only at their landing", () => {
+    const C = nav.cell;
+    for (const [label, landing] of [["F1 stairs", map.stairs.F1], ["F2 stairs", map.stairs.F2]] as const) {
+      const r = map.walk_rects!.find(w => w.label.startsWith(label))!;
+      const c0 = Math.ceil(r.x0 / C - 0.5), c1 = Math.ceil(r.x1 / C - 0.5) - 1;
+      const r0 = Math.ceil(r.y0 / C - 0.5), r1 = Math.ceil(r.y1 / C - 0.5) - 1;
+      const ring: [number, number][] = [];
+      for (let c = c0; c <= c1; c++) ring.push([c, r0 - 1], [c, r1 + 1]);
+      for (let y = r0; y <= r1; y++) ring.push([c0 - 1, y], [c1 + 1, y]);
+      const leaks = ring.filter(([c, y]) => nav.isWalkable(c, y) && Math.hypot((c + 0.5) * C - landing.x, (y + 0.5) * C - landing.y) > 15);
+      assert.deepEqual(leaks.map(([c, y]) => `(${c * C},${y * C})`), [], `${label} is open away from its landing`);
+    }
+  });
+
   test("routes are shortest: never longer than an independent Dijkstra check", () => {
     // Smoothed path must be <= the best grid path (+ a cell of slack at each end,
     // because stops sit inside cells, not on cell centres).

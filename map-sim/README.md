@@ -9,6 +9,8 @@ Floor plan, walkable grid, and A* pathfinding for the SPOT replay.
     (locations.csv x/y do NOT match the image, so they are not used.)
   - `grid`: walkable grid, 5 px cells, 219x119. `#` = walkable, `.` = blocked.
   - `stairs`: the one floor-1 <-> floor-2 link (top-middle stairs on F1, centre stairs on F2).
+    `stairs.flight` is each flight as drawn; going up, SPOT climbs the F1 flight, fades, and
+    climbs the F2 flight from its foot into the corridor (down is the reverse).
 - `src/sim/astar.ts`: `NavGrid.route(from, to)` returns the polyline(s) the robot walks. Has no dependencies and no UI.
 - `src/sim/spot.ts`: the animated SPOT robot dog (Canvas 2D, no images). `SpotAnimator`
   keeps heading + leg phase between frames, `drawSpot()` draws one frame.
@@ -22,6 +24,8 @@ Floor plan, walkable grid, and A* pathfinding for the SPOT replay.
 - `src/sim/replay.ts`: a mission replay without drawing: `MissionRun` (current step, mission progress,
   which alerts each step raises, skipped steps) and `AlertFeed` (one entry per alert, upgraded
   when it gets more severe). The sandbox drives SPOT's walking and calls into it.
+- `src/sim/weather.ts`: today's real forecast from Open-Meteo (free, no key) -> SPOT says whether
+  it's safe or not safe to go scan and scout.
 - `src/sim/index.ts`: one import for everything above.
 - `src/sim/types.ts`: shared types.
 - `tools/build_grid.py`: builds the grid from hand-traced rectangles (rooms, corridors, doors).
@@ -31,12 +35,13 @@ Floor plan, walkable grid, and A* pathfinding for the SPOT replay.
 - `tests/scenario.test.ts`: mission data checks, alert thresholds, and the dock obstacle detour from every stop.
 - `tests/health.test.ts`: health scores add up to their reasons, life estimates, heat effect.
 - `tests/replay.test.ts`: whole-mission replays (alert escalation, skipped steps, finished state).
+- `tests/weather.test.ts`: forecast parsing and the safe / not safe verdict (fetch is faked, no network).
 
 ## Testing it on its own (no backend, no frontend needed)
 Needs Node 22.6+ (for `--experimental-strip-types`).
 
     npm install          # one dev dependency: esbuild (only for the sandbox)
-    npm test             # 64 automated tests (pathfinding, SPOT motion, alerts, scenarios, component health)
+    npm test             # 71 automated tests (pathfinding, SPOT motion, alerts, scenarios, component health)
     npm run sandbox      # prints the exact URL to open, e.g. http://127.0.0.1:5173/sandbox/
 
 `npm test` checks, for all 210 stop-to-stop routes: every route exists, never
@@ -121,6 +126,19 @@ little to forecast from a trend. So the estimate is built from stated assumption
 
 A component belongs to the stop where SPOT inspects it most. Each stop's ring on
 the map is coloured by its weakest component: red < 40, amber < 70, green ≥ 70.
+
+## Is it safe to go out today? (real weather)
+Tick "check today's weather before going out in" and pick a city, or press
+"Check now". The sandbox asks Open-Meteo for today's forecast (free, no API key;
+only the city's coordinates are sent) and SPOT says either
+**"Safe to go scan and scout today"** or **"Not safe to go scan and scout
+today: <why>"**. When it's not safe, SPOT doesn't start the mission.
+
+Not safe when the forecast has: thunderstorms; heavy rain (more than 10 mm in
+the day, our limit; SPOT is rated for light rain, SPOT user guide); snow, sleet
+or freezing rain (slippery surfaces can make SPOT fall, guide); above 45°C or
+below -20°C (guide); gusts above 60 km/h (our limit; the guide gives none).
+If Open-Meteo can't be reached, SPOT says so and goes ahead.
 
 To rebuild the mission data from the kit (paths to your copies of the CSVs):
 

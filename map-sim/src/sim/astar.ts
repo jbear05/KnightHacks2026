@@ -11,7 +11,7 @@
  *   where a straight line would hit a wall. The robot then walks clean lines.
  * - Floors: the two floors sit side by side in one image with no walkable
  *   cell between them. A route that changes floor = A* to this floor's
- *   stairs + A* from the other floor's stairs.
+ *   stairs and along its flight, then the other floor's flight and A* on.
  */
 import type { MapData, Pt, Route } from "./types.ts";
 
@@ -79,7 +79,14 @@ export class NavGrid {
       const s = this.map.stairs;
       const a = from.floor === 1 ? s.F1 : s.F2;
       const b = to.floor === 1 ? s.F1 : s.F2;
-      legs = [this.leg(from, { ...a }), this.leg({ ...b }, to)];
+      const leaving = this.leg(from, { ...a }), arriving = this.leg({ ...b }, to);
+      // Walk the flights as drawn: up/down this floor's flight to its far end, then (after the
+      // floor change) from the far end of the other floor's flight back to its landing.
+      const farA = s.flight?.[from.floor === 1 ? "F1" : "F2"]?.at(-1);
+      const farB = s.flight?.[to.floor === 1 ? "F1" : "F2"]?.at(-1);
+      if (farA) leaving.push({ x: farA.x, y: farA.y, floor: from.floor });
+      if (farB) arriving.unshift({ x: farB.x, y: farB.y, floor: to.floor });
+      legs = [leaving, arriving];
     }
     const route: Route = {
       legs,
