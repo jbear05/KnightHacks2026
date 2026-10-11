@@ -7,9 +7,11 @@ import mapData from "@/map-sim/data/map.json";
 import missionsData from "@/map-sim/data/missions.json";
 import {
   MissionRun,
+  LIFE,
   NavGrid,
   ambientC,
   componentHealth,
+  componentsAt,
   distToRect,
   dockObstacleAlert,
   obstacleOnApproach,
@@ -92,6 +94,25 @@ let healthCache: Map<string, ComponentHealth> | null = null;
 const health = () => (healthCache ??= componentHealth(DATA));
 
 const at = (s: Stop): Pt => ({ x: s.x, y: s.y, floor: s.floor });
+
+export interface StopComponents {
+  stopName: string;
+  /** Components based at the stop (where SPOT inspects them most), weakest first. */
+  components: ComponentHealth[];
+  /** Components based elsewhere that SPOT also checks here now and then. */
+  visiting: ComponentHealth[];
+}
+
+/** map-sim's component health at a stop, for the card that opens when a pin is clicked. */
+export function stopComponents(stopId: string): StopComponents | null {
+  const stop = STOPS[stopId];
+  if (!stop) return null;
+  const visiting = [...health().values()].filter((h) => h.stops[0] !== stopId && h.stops.includes(stopId));
+  return { stopName: stop.name, components: componentsAt(health(), stopId), visiting };
+}
+
+/** map-sim's alert bands for simulated life left. */
+export const lifeLevel = (months: number) => (months <= LIFE.criticalMonths ? "critical" : months <= LIFE.warnMonths ? "warning" : "ok");
 
 /** Where SPOT walks to step i from: the last stop it actually went to (skipped stops don't count). */
 export function fromStop(plan: { action_id: string; location_id: string }[], i: number, skipped: ReadonlySet<string>): string {
