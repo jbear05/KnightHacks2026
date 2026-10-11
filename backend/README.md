@@ -57,7 +57,19 @@ A decision row records which choice an operator made for a finding. It does not 
 
 ## Deployment
 
-The frontend's `vercel.json` covers only the Next.js app; this API is a separate long-running Node process (it holds SSE connections, so it is not a Vercel function). Any Node host works:
+The frontend's `vercel.json` covers only the Next.js app; this API is a separate long-running Node process (it holds SSE connections, so it is not a Vercel function).
+
+**Current host: Railway.** Project `watchdog-api`, service `api`, public URL `https://api-production-efbcb.up.railway.app`. Railway builds with Railpack (`npm ci`, Node from `engines`) and runs `npm start`; it injects `PORT`. The only variable set is `DATABASE_URL` (the team's Neon database, already migrated and seeded). Redeploy from `backend/` with the Railway CLI:
+
+```bash
+railway link            # once: pick watchdog-api / api
+railway up              # uploads backend/ (respects .gitignore, so .env is not sent) and deploys
+railway logs            # runtime logs
+```
+
+`.env` is gitignored and not uploaded; change the database with `railway variables --set DATABASE_URL=...` (don't paste the value into chat or docs).
+
+Any other Node host works the same way:
 
 1. Set `DATABASE_URL` (and optionally `PORT`) in the host's environment.
 2. Build command `npm ci`, start command `npm start`, root directory `backend`.

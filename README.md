@@ -54,8 +54,9 @@ Then set `NEXT_PUBLIC_USE_MOCK=false` and `NEXT_PUBLIC_API_BASE=http://localhost
 
 ## Deployment
 
-- **Frontend (Vercel).** `vercel.json` runs `npm ci` and `npm run build`. Without environment variables the deployment runs in mock mode and shows the mock banner. To use a hosted API, set `NEXT_PUBLIC_USE_MOCK=false` and `NEXT_PUBLIC_API_BASE=https://<api-host>` in the Vercel project and redeploy.
-- **API.** A separate Node host; steps in [`backend/README.md`](backend/README.md#deployment).
+- **API (Railway).** Project `watchdog-api`, service `api`, deployed from `backend/`, at `https://api-production-efbcb.up.railway.app`. It reads the team's Neon database through the service's `DATABASE_URL` variable. Steps in [`backend/README.md`](backend/README.md#deployment).
+- **Frontend (Vercel).** `vercel.json` runs `npm ci` and `npm run build`. The Vercel project sets `NEXT_PUBLIC_USE_MOCK=false` and `NEXT_PUBLIC_API_BASE=https://api-production-efbcb.up.railway.app` for Production and Preview, so deployments read the Railway API. Without those variables a deployment runs in mock mode and shows the mock banner. `NEXT_PUBLIC_*` values are baked in at build time, so redeploy after changing them.
+- Decisions saved on the hosted site are written to the shared Neon database.
 
 ## How the screens use the data
 
