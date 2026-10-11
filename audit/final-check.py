@@ -1,18 +1,22 @@
 """Read-only challenge audit. Reads local CSVs and GETs the local API only."""
 import csv
 import json
+import os
 from collections import Counter
 from pathlib import Path
 from urllib.request import urlopen
 from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parents[1]
+# WATCHDOG_API checks a hosted API instead (results go to WATCHDOG_RESULTS if set).
+API = os.environ.get('WATCHDOG_API', 'http://localhost:3001').rstrip('/')
+RESULTS = os.environ.get('WATCHDOG_RESULTS', 'audit/final-check-results.json')
 DATA = ROOT / 'SPOT_KnightHacks_Challenge_Kit Part One' / '02_DATA'
 def rows(name):
     with (DATA / (name + '.csv')).open(encoding='utf-8-sig', newline='') as f:
         return list(csv.DictReader(f))
 def get(path):
-    with urlopen('http://localhost:3001' + path, timeout=15) as r:
+    with urlopen(API + path, timeout=30) as r:
         return json.load(r)
 def rate(items, key='status', success='SUCCESS'):
     n = sum(r[key] == success for r in items)
@@ -112,5 +116,5 @@ for path in ['/missions','/missions/M001','/missions/M014','/missions/M027','/as
             if path=='/missions': pages[path]['mission_links']=sum(f'/missions/{m["mission_id"]}"' in body for m in missions)
     except Exception as e: pages[path]=dict(error=str(e))
 result=dict(counts=dict(missions=len(missions),actions=len(actions),readings=len(readings),anomalies=len(anomalies),locations=len(locations),assets=len(assets),replay_events=len(events)),metrics=dict(completed_missions=sum(m['mission_status']=='COMPLETED' for m in missions),completed_with_failed_actions=sum(m['mission_status']=='COMPLETED' and any(a['mission_id']==m['mission_id'] and a['status']=='FAILED' for a in actions) for m in missions),hidden_serious_findings=len(hidden),completed_missions_with_hidden_findings=len({p['mission_id'] for p in hidden}),replay_missions=len({e['mission_id'] for e in events}),failed_actions=sum(a['status']=='FAILED' for a in actions)),insights=expected,insight_checks=insight_checks,api_record_errors=errors,api_mission_count=len(api_missions),asset_endpoints_with_actions=asset_actions_present,asset_actions_away_from_home=actions_away_from_home,error_statuses=statuses,pages=pages)
-(ROOT/'audit/final-check-results.json').write_text(json.dumps(result,indent=2)+'\n')
+(ROOT/RESULTS).write_text(json.dumps(result,indent=2)+'\n')
 print(json.dumps(result,indent=2))
