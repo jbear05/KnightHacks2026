@@ -41,7 +41,11 @@ const server = http.createServer(async (req, res) => {
   let file = normalize(join(ROOT, path));
   if (!file.startsWith(ROOT + sep) && file !== ROOT) { res.writeHead(403); return res.end(); }
   try {
-    if ((await stat(file)).isDirectory()) file = join(file, "index.html");
+    if ((await stat(file)).isDirectory()) {
+      // "/sandbox" -> "/sandbox/", or the page's relative imports (./sim.js) resolve from "/"
+      if (!path.endsWith("/")) { res.writeHead(301, { Location: `${path}/` }); return res.end(); }
+      file = join(file, "index.html");
+    }
     const body = await readFile(file);
     res.writeHead(200, { "Content-Type": TYPES[extname(file)] || "application/octet-stream", "Cache-Control": "no-store" });
     res.end(body);

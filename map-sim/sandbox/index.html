@@ -79,6 +79,11 @@
     <input type="range" id="heatC" min="4" max="24" step="1" value="16"><span id="heatV">+16°C</span>
     <label><input type="checkbox" id="obstacle"> Obstacle at the dock</label>
   </span>
+  <span class="grp" title="Today's real forecast from Open-Meteo (free, no API key)">
+    <label><input type="checkbox" id="useForecast"> check today's weather before going out in</label>
+    <select id="place"></select>
+    <button id="checkFc">Check now</button>
+  </span>
   <label>Walk speed <select id="speed"><option value="35">slow</option><option value="80" selected>normal</option><option value="220">fast</option></select></label>
   <label><input type="checkbox" id="showGrid"> walkable grid</label>
   <label><input type="checkbox" id="showRoutes" checked> route lines</label>
@@ -104,6 +109,7 @@
     <div class="row"><span>Heading to</span><span id="iTarget">–</span></div>
     <div class="row"><span>Step</span><span id="iStep">–</span></div>
     <div class="row"><span>Battery</span><span id="iBat">–</span></div>
+    <div class="row"><span>Weather</span><span id="iWx" style="max-width:220px">not checked</span></div>
     <div class="row" id="rowAir" hidden><span>Air temp there <span class="tag sim">SIM</span></span><span id="iAir">–</span></div>
     <h3 style="margin-top:14px">Alerts <span class="counts" id="aCount"></span></h3>
     <div class="legend"><span class="tag">DATA</span> from the kit data · <span class="tag sim">SIMULATED</span> what-if scenario only</div>
@@ -123,6 +129,7 @@ import {
   NavGrid, pointAlong, polylineLength, SpotAnimator, drawSpot, headingAlong,
   missionActions, ambientC, heatWaveExtraC, obstacleOnApproach, distToRect, dockObstacleAlert, LIMITS,
   componentHealth, componentsAt, remainingWithHeat, formatLife, LIFE, MissionRun,
+  fetchForecast, forecastVerdict, safetyMessage, weatherAlert, PLACES,
 } from './sim.js';
 
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
@@ -207,9 +214,18 @@ function walkSegs(route, stopShort, label, goal, watch = null) {
 }
 
 // ---------------------------------------------------------------- mission replay
-function replayMission(id) {
+async function replayMission(id) {
   resetAll();
   run = new MissionRun(missions, health, byId, DOCK, id);
+  if ($('useForecast').checked) {
+    const wx = await checkWeather();
+    if (wx && !wx.v.safe) {          // SPOT doesn't go out
+      log(`⛔ ${id} not started: ${safetyMessage(wx.place, wx.v)}`, 'bad');
+      run.finish();
+      return;
+    }
+    if (wx) log(`✅ ${safetyMessage(wx.place, wx.v)}`, 'ok');
+  }
   const acts = run.actions;
   spot = { ...byId.WP01 }; animator.reset(spot.x * S, spot.y * S, -Math.PI / 2);   // contract: missions start at WP01
   const sim = [heatOn() && `heat wave +${heatOn()}°C`, $('obstacle').checked && 'obstacle at the dock'].filter(Boolean);
@@ -317,7 +333,7 @@ function renderAlerts() {
     ? `<span><span class="tag" style="color:var(--crit)">${n('critical')} critical</span><span class="tag" style="color:var(--warn)">${n('warning')} warn</span><span class="tag">${n('info')} info</span></span>` : '';
   $('alerts').innerHTML = alerts.length ? alerts.map((a, k) => `
     <div class="alert ${a.level}" data-k="${k}">
-      <div class="meta"><span class="tag ${a.simulated ? 'sim' : ''}">${a.simulated ? 'SIMULATED' : 'DATA'}</span>
+      <div class="meta"><span class="tag ${a.simulated ? 'sim' : ''}">${a.id.startsWith('wx-') ? 'FORECAST' : a.simulated ? 'SIMULATED' : 'DATA'}</span>
         <span>${esc(a.level)}</span><span>${esc(a.at)}</span><span>${esc(a.location_id ?? '')}</span></div>
       <div class="t">${esc(a.title)}</div><div class="d">${esc(a.detail)}</div>
     </div>`).join('') : '<div class="empty">Replay a mission to see alerts.</div>';
@@ -451,7 +467,7 @@ function drawObstacle(o) {
 }
 
 function drawBanner(a, age) {
-  const col = a.level === 'critical' ? '#ff5c5c' : '#ffb020';
+  const col = a.level === 'critical' ? '#ff5c5c' : a.level === 'info' ? '#5fd38d' : '#ffb020';
   const fade = Math.min(1, (4500 - age) / 600);
   ctx.save(); ctx.globalAlpha = fade;
   const x = 24, y = 24, w = cv.width - 48, h = 92;
@@ -459,9 +475,9 @@ function drawBanner(a, age) {
   ctx.fillStyle = col; roundRect(x, y, 14, h, 6); ctx.fill();
   ctx.textBaseline = 'top';
   ctx.font = 'bold 30px system-ui,sans-serif'; ctx.fillStyle = col;
-  const head = `${a.level === 'critical' ? '⛔' : '⚠'} ${a.title}`;
+  const head = `${a.level === 'critical' ? '⛔' : a.level === 'info' ? '✅' : '⚠'} ${a.title}`;
   ctx.fillText(head, x + 32, y + 12);
-  const tag = a.simulated ? 'SIMULATED' : 'DATA', hx = x + 44 + ctx.measureText(head).width;
+  const tag = a.id.startsWith('wx-') ? 'FORECAST' : a.simulated ? 'SIMULATED' : 'DATA', hx = x + 44 + ctx.measureText(head).width;
   ctx.font = 'bold 18px system-ui,sans-serif';
   ctx.fillStyle = a.simulated ? '#3a2350' : '#2c3240'; roundRect(hx, y + 16, ctx.measureText(tag).width + 14, 26, 4); ctx.fill();
   ctx.fillStyle = a.simulated ? '#c77dff' : '#9aa3b2'; ctx.fillText(tag, hx + 7, y + 20);
@@ -657,6 +673,30 @@ $('mission').innerHTML = ids.map(id => {
 $('replay').onclick = () => replayMission($('mission').value);
 $('heatC').oninput = () => { $('heatV').textContent = `+${$('heatC').value}°C`; renderComponents(); };
 $('heat').onchange = renderComponents;
+
+// ---------------------------------------------------------------- today's weather (Open-Meteo)
+$('place').innerHTML = Object.keys(PLACES).map(p => `<option>${esc(p)}</option>`).join('');
+
+/** Ask for today's forecast; SPOT says whether it's safe to go scan and scout. Null if unreachable. */
+async function checkWeather() {
+  const place = $('place').value, { lat, lon } = PLACES[place];
+  $('iWx').textContent = 'checking…'; $('iWx').style.color = '';
+  try {
+    const f = await fetchForecast(lat, lon), v = forecastVerdict(f);
+    const a = weatherAlert(place, f, v);
+    $('iWx').textContent = `${v.safe ? '✅ Safe' : '⛔ Not safe'} to go scan and scout · ${f.date}: ${v.summary}`;
+    $('iWx').style.color = v.safe ? '#5fd38d' : 'var(--crit)';
+    $('iWx').title = safetyMessage(place, v);
+    const entry = run ? run.raise(a) : null;
+    if (entry) renderAlerts();
+    banner = { a, t0: performance.now() };
+    return { place, f, v };
+  } catch (e) {
+    $('iWx').textContent = `couldn't check the weather (${e.message})`;
+    return null;
+  }
+}
+$('checkFc').onclick = checkWeather;
 $('clickRoute').onchange = renderComponents;
 $('cClose').onclick = closeCard;
 $('cBody').addEventListener('click', e => {

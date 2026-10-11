@@ -21,6 +21,8 @@ export interface MapData {
   stairs: {
     F1: { x: number; y: number; floor: number };
     F2: { x: number; y: number; floor: number };
+    /** Each flight as drawn on its floor: [landing (= F1/F2 above), far end]. Optional. */
+    flight?: { F1: { x: number; y: number }[]; F2: { x: number; y: number }[] };
     cost_sec: number;
   };
   /** Rectangles build_grid.py painted the grid from (stale after hand edits in the grid editor). */
@@ -36,10 +38,11 @@ export interface Pt {
 
 /**
  * A route between two points. If it changes floor, it is split into legs:
- * leg 0 walks to the stairs, leg 1 walks from the other stairs end.
+ * leg 0 walks to the stairs (and up/down the flight drawn on that floor), leg 1
+ * walks the other floor's flight from its far end and on to the target.
  */
 export interface Route {
   legs: Pt[][];         // polylines, one per floor visited
-  lengthPx: number;     // walking length (stairs excluded)
+  lengthPx: number;     // walking length, including along the drawn flights
   usesStairs: boolean;
 }

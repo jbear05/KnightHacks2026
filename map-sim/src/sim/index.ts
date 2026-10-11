@@ -4,4 +4,5 @@ export * from "./spot.ts";
 export * from "./scenario.ts";
 export * from "./health.ts";
 export * from "./replay.ts";
+export * from "./weather.ts";
 export type * from "./types.ts";

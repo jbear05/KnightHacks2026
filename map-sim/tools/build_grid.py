@@ -36,7 +36,7 @@ WALK = [
     (165, 182, 300, 330, "WP03 Cooling Loop room"),
     (165, 42, 268, 144, "WP04 Pump Bay room"),
     (310, 180, 605, 292, "WP05 Pipe Gallery walkway"),
-    (492, 42, 630, 140, "WP06 Compressor Area room"),
+    (495, 42, 630, 140, "WP06 Compressor Area room"),  # x0 495: keeps a wall between the room and the F1 stairs
     (298, 362, 458, 500, "WP08 Turbine Hall North room"),
     (515, 325, 606, 500, "WP09 Turbine Hall South room"),
     (630, 386, 708, 505, "WP10 Valve Station room"),
@@ -72,6 +72,13 @@ WALK = [
 STAIRS = {
     "F1": {"x": 478, "y": 155, "floor": 1},
     "F2": {"x": 925, "y": 245, "floor": 2},
+    # Each flight as drawn: landing (where it meets the floor, = the point above) -> far end.
+    # Going up, SPOT climbs the F1 flight, fades, appears at the foot of the F2 flight and
+    # climbs into the F2 corridor; going down is the reverse.
+    "flight": {
+        "F1": [{"x": 478, "y": 155}, {"x": 478, "y": 52}],
+        "F2": [{"x": 925, "y": 245}, {"x": 925, "y": 395}],
+    },
     "cost_sec": 25,  # time SPOT takes to climb one flight (assumption)
 }
 
