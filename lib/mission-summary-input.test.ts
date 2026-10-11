@@ -16,6 +16,13 @@ describe("buildMissionSummaryInput", () => {
     expect(input).not.toContain("undefined");
   });
 
+  it("leads with the failed steps and the most urgent finding, before battery", () => {
+    const input = buildMissionSummaryInput(mission);
+    expect(input).toContain("The failed steps were gauge reading at WP09 (sensor timeout); gauge reading at WP06 (sensor timeout); walk to stop at WP06 (lost robot position).");
+    expect(input).toMatch(/The most urgent findings are HIGH gauge out of range at .+ on HX-217/);
+    expect(input.indexOf("most urgent")).toBeLessThan(input.indexOf("Battery changed"));
+  });
+
   it("handles missions without problems, readings, or battery values", () => {
     const emptyMission = {
       ...mission,

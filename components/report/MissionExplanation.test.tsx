@@ -9,7 +9,10 @@ import { MissionExplanation } from "./MissionExplanation";
 
 // The real summarizer and grounding check run; only the model itself is replaced.
 const { generate } = vi.hoisted(() => ({ generate: vi.fn() }));
-vi.mock("@huggingface/transformers", () => ({ pipeline: vi.fn(async () => generate) }));
+vi.mock("@huggingface/transformers", () => ({
+  pipeline: vi.fn(async () => generate),
+  ModelRegistry: { is_pipeline_cached: vi.fn(async () => false) },
+}));
 
 const m = mission as MissionDetail;
 // Every number and ID here is in M014's model input, but on the wrong fields (22 is the end battery,
@@ -48,7 +51,7 @@ describe("MissionExplanation", () => {
     render(<MissionExplanation mission={m} />);
     const before = records();
     await draft();
-    expect(screen.getByText(/AI drafting failed \(network down\)/)).toBeTruthy();
+    expect(await screen.findByText(/AI drafting failed \(network down\)/)).toBeTruthy();
     expect(records()).toBe(before);
   });
 
@@ -60,7 +63,9 @@ describe("MissionExplanation", () => {
     const before = records();
     await draft();
     // The draft is shown only as secondary wording, with the limit spelled out; the records are unchanged.
-    expect(screen.getByText(SWAPPED).tagName).toBe("BLOCKQUOTE");
+    const quote = await screen.findByText((_, el) => el?.tagName === "BLOCKQUOTE" && el.textContent === SWAPPED);
+    // Record IDs and numbers are picked out in bold so they are easy to check against the records.
+    expect([...quote.querySelectorAll("strong")].map((b) => b.textContent)).toEqual(["M014", "22", "3%"]);
     expect(screen.getByText(/cannot tell whether a number is attached to the right field/)).toBeTruthy();
     expect(records()).toBe(before);
     expect(records()).toContain("3 of 10 steps failed");
@@ -71,6 +76,6 @@ describe("MissionExplanation", () => {
     render(<MissionExplanation mission={m} />);
     await draft();
     expect(screen.queryByText("M014 had 9 failed actions.")).toBeNull();
-    expect(screen.getByText(/so it was discarded/)).toBeTruthy();
+    expect(await screen.findByText(/so it was discarded/)).toBeTruthy();
   });
 });
