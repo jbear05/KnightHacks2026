@@ -147,6 +147,30 @@ export function withArticle(type: ActionType): string {
   return `${/^[aeiou]/.test(label) ? "an" : "a"} ${label}`;
 }
 
+/**
+ * Where SPOT is in `plan` (sorted by sequence) at mission-clock `clock`, given which actions have
+ * finished. SPOT leaves the previous stop at that step's timestamp, walks, and arrives duration_sec
+ * before the next step's timestamp to inspect. The map and the status panel both call this with
+ * useReplay()'s clock, so they can never disagree. null once every step is done.
+ */
+export function stepAt(plan: Action[], done: ReadonlySet<string>, clock: number, startMs: number): StepState | null {
+  const next = plan.findIndex((a) => !done.has(a.action_id));
+  if (next === -1) return null;
+  const action = plan[next];
+  const prev = next > 0 ? plan[next - 1] : null;
+  const leaveAt = prev ? msOf(prev.timestamp) : startMs;
+  const arriveAt = Math.max(leaveAt, msOf(action.timestamp) - (action.duration_sec ?? 0) * 1000);
+  const walking = clock < arriveAt;
+  return {
+    action,
+    step: next + 1,
+    phase: walking ? "walking" : "inspecting",
+    fromLocationId: prev?.location_id ?? START_LOCATION,
+    arriveAt,
+    progress: walking ? Math.min(1, Math.max(0, (clock - leaveAt) / Math.max(1, arriveAt - leaveAt))) : 1,
+  };
+}
+
 export function deriveLive(m: MissionDetail, events: LiveEvent[], clock: number): LiveState {
   const plan = [...m.actions].sort((a, b) => a.sequence - b.sequence);
   const byId = new Map(plan.map((a) => [a.action_id, a]));
@@ -181,25 +205,8 @@ export function deriveLive(m: MissionDetail, events: LiveEvent[], clock: number)
     }
   }
 
-  const done = new Set(results.map((r) => r.action.action_id));
-  const next = plan.findIndex((a) => !done.has(a.action_id));
-  let current: StepState | null = null;
-  if (started && !ended && next !== -1) {
-    const action = plan[next];
-    const prev = next > 0 ? plan[next - 1] : null;
-    const leaveAt = prev ? msOf(prev.timestamp) : msOf(m.start_time);
-    const dueAt = msOf(action.timestamp);
-    const arriveAt = Math.max(leaveAt, dueAt - (action.duration_sec ?? 0) * 1000);
-    const walking = clock < arriveAt;
-    current = {
-      action,
-      step: next + 1,
-      phase: walking ? "walking" : "inspecting",
-      fromLocationId: prev?.location_id ?? START_LOCATION,
-      arriveAt,
-      progress: walking ? Math.min(1, Math.max(0, (clock - leaveAt) / Math.max(1, arriveAt - leaveAt))) : 1,
-    };
-  }
+  const step = stepAt(plan, new Set(results.map((r) => r.action.action_id)), clock, msOf(m.start_time));
+  const current = started && !ended ? step : null;
 
   // Attention queue: serious problems first (priority desc), then failed steps without a problem.
   const serious = problems.filter((p) => SERIOUS.includes(p.severity)).sort((a, b) => b.priority - a.priority);
@@ -253,7 +260,7 @@ function buildFeed(m: MissionDetail, events: LiveEvent[], current: StepState | n
       case "PROBLEM_FOUND": {
         const p = e.details.problem;
         if (!SERIOUS.includes(p.severity)) break;
-        rows.push({ key: e.event_id, time, glyph: "problem", text: `${p.asset_id} needs review`, detail: `· ${p.location_id} · priority ${p.priority}` });
+        rows.push({ key: e.event_id, time, glyph: "problem", text: `${p.asset_id} serious finding`, detail: `· ${p.location_id} · priority ${p.priority}` });
         break;
       }
       case "MISSION_COMPLETED":

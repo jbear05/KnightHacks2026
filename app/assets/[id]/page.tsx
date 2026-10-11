@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AssetFacts } from "@/components/asset/AssetFacts";
 import { AssetHeadline } from "@/components/asset/AssetHeadline";
+import { FailedSteps } from "@/components/asset/FailedSteps";
 import { InspectionPhoto } from "@/components/asset/InspectionPhoto";
 import { PastProblems } from "@/components/asset/PastProblems";
 import { ReadingHistory } from "@/components/asset/ReadingHistory";
@@ -37,7 +38,10 @@ export default async function AssetPage({ params, searchParams }: Props) {
       <AssetFacts asset={asset} />
       <ReadingHistory asset={asset} />
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
-        <PastProblems asset={asset} />
+        <div className="flex min-w-0 flex-1 flex-col gap-8">
+          <PastProblems asset={asset} />
+          <FailedSteps asset={asset} />
+        </div>
         <InspectionPhoto asset={asset} backTo={backTo} />
       </div>
     </div>

@@ -6,6 +6,7 @@ import { FlaskConical } from "lucide-react";
 import { SeverityBadge } from "@/components/ui/SeverityBadge";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ACTION_LABEL, ANOMALY_LABEL, assetOf, criticalityPhrase, FAILURE_LABEL, locationLabel, timeOf } from "@/lib/format";
+import { awaitingReview, DECISION_NAME } from "@/lib/report";
 import {
   BATTERY_LOW,
   BATTERY_WARN,
@@ -97,7 +98,7 @@ function Battery({ live }: { live: LiveState }) {
       </p>
       <p className="flex items-center gap-1.5 text-fg-subtle type-badge">
         <Image src="/figma/icon-info.svg" alt="" width={14} height={14} />
-        Success drops to {Math.round((succeeded / total) * 100)}% below {BATTERY_LOW}% battery ({succeeded} of {total} steps).
+        Across all missions, {succeeded} of {total} steps below {BATTERY_LOW}% battery succeeded (small sample; see Insights).
       </p>
     </section>
   );
@@ -110,10 +111,12 @@ function AttentionQueue({ items, missionId }: { items: QueueItem[]; missionId: s
         <h2 id="queue-heading" className="type-heading-md">
           Attention queue
         </h2>
-        <p className="text-fg-muted type-label">{items.length} open · priority first</p>
+        <p className="text-fg-muted type-label">
+          {items.length} so far · {items.filter((it) => it.kind === "problem" && awaitingReview(it.problem)).length} awaiting review
+        </p>
       </div>
       {items.length === 0 ? (
-        <p className="pt-1 text-fg-muted type-body-sm">Nothing needs you yet. Failed steps and serious findings land here.</p>
+        <p className="pt-1 text-fg-muted type-body-sm">No failed steps or serious findings yet. They land here as the replay reaches them.</p>
       ) : (
         <ul className="-mx-5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-5">
           {items.map((it) => (
@@ -143,8 +146,8 @@ function ProblemRow({ item: { problem: p } }: { item: Extract<QueueItem, { kind:
       </p>
       <div className="flex items-center gap-2">
         <SeverityBadge severity={p.severity} />
-        <p className="text-fg-muted type-mono">
-          Priority {p.priority} · {timeOf(p.timestamp)}
+        <p className="truncate text-fg-muted type-mono">
+          Priority {p.priority} · {timeOf(p.timestamp)} · {p.decision ? `Decision saved: ${DECISION_NAME[p.decision]}` : "Awaiting review"}
         </p>
       </div>
     </>

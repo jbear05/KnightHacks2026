@@ -178,6 +178,30 @@ export function problemContext(d: AssetDetail, p: Problem): string | null {
   return a ? stepPhrase(a) : null;
 }
 
+export interface FailedStep {
+  action: Action;
+  /** The equipment reading the step still produced, if any (localization telemetry is never here). */
+  reading: Reading | undefined;
+  /** A NAVIGATION step: a robot walk failure, not an equipment check. */
+  walk: boolean;
+  /** SPOT ran the step away from the asset's home stop. */
+  away: boolean;
+}
+
+/** Failed steps on this asset, oldest first; null when the API sent no actions list. */
+export function failedSteps(d: AssetDetail): FailedStep[] | null {
+  if (!d.actions) return null;
+  const rs = equipmentReadings(d);
+  return d.actions
+    .filter((a) => a.status === "FAILED")
+    .map((a) => ({
+      action: a,
+      reading: rs.find((r) => r.action_id === a.action_id),
+      walk: a.action_type === "NAVIGATION",
+      away: a.location_id !== d.location_id,
+    }));
+}
+
 export interface AssetFacts {
   readings: number;
   questionable: number;

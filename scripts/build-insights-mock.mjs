@@ -76,7 +76,13 @@ const repeatAssets = assets
   .filter((a) => a.problems > 1)
   .sort((a, b) => b.problems - a.problems);
 
-const insights = { compare, byLocation, batteryBuckets, byActionType, failureCauses, repeatAssets, soWhat: {} };
+const byConfigType = byActionType.map(({ action_type }) => ({
+  action_type,
+  V1: rate(actions.filter((a) => a.action_type === action_type && a.configuration_version === "V1"), (a) => a.status === "SUCCESS"),
+  V2: rate(actions.filter((a) => a.action_type === action_type && a.configuration_version === "V2"), (a) => a.status === "SUCCESS"),
+}));
+
+const insights = { compare, byConfigType, byLocation, batteryBuckets, byActionType, failureCauses, repeatAssets, soWhat: {} };
 
 const replayIds = new Set(
   readFileSync(join(dir, "replay.ndjson"), "utf8").trim().split(/\r?\n/).map((l) => JSON.parse(l).mission_id),
@@ -98,6 +104,8 @@ const summaries = missions.map((m) => {
     failed_actions: actions.filter((a) => a.mission_id === m.mission_id && a.status === "FAILED").length,
     serious_problems: serious.length,
     hidden_problems: statusOf[m.mission_id] === "COMPLETED" ? serious.length : 0,
+    // Fixtures carry no operator decisions, so every flagged finding is awaiting review.
+    awaiting_review: mine.filter((p) => p.operator_review_required.toLowerCase() === "true").length,
     in_replay: replayIds.has(m.mission_id),
   };
 });

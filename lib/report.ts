@@ -1,8 +1,21 @@
 // Derived numbers for the Mission Report. Pure functions over MissionDetail so they are easy to check.
 import { assetOf, floorOf, FAILURE_PLURAL, numberWord, plural, readingValue } from "./format";
-import type { Action, FailureType, MissionDetail, Problem, Reading, Severity } from "./types";
+import type { Action, Decision, FailureType, MissionDetail, Problem, Reading, Severity } from "./types";
 
 export const SERIOUS: Severity[] = ["HIGH", "CRITICAL"];
+
+/**
+ * Review states, used the same way on every screen:
+ * - Recorded finding: any anomaly row in the data. Historical counts never change.
+ * - Awaiting review: the data flags it for operator review (operator_review_required, true for
+ *   exactly the HIGH/CRITICAL rows) and no operator decision is saved yet (decision === null).
+ * - Decision saved: the latest dispatch / watch / dismiss choice. It records what the operator
+ *   chose; it does not mean a technician was notified or the equipment was fixed.
+ */
+export const awaitingReview = (p: Pick<Problem, "operator_review_required" | "decision">) =>
+  p.operator_review_required && p.decision === null;
+
+export const DECISION_NAME: Record<Decision, string> = { dispatch: "Dispatch", watch: "Watch", dismiss: "Dismiss" };
 
 export function readingFor(m: MissionDetail, actionId: string): Reading | undefined {
   // NAVIGATION steps only carry robot telemetry (decision D4); keep it, the step panel labels it.
@@ -37,7 +50,7 @@ export function heroSentence(m: MissionDetail): string {
   let s = `${m.mission_id} finished with ${ok} of ${total} steps succeeding.`;
   if (serious.length === 0) return `${s} No serious equipment findings.`;
   const top = serious.some((p) => p.severity === "CRITICAL") ? "critical" : "high-severity";
-  s += ` ${numberWord(serious.length)} ${top} equipment ${serious.length === 1 ? "finding needs" : "findings need"} review`;
+  s += ` ${numberWord(serious.length)} ${top} equipment ${serious.length === 1 ? "finding was" : "findings were"} recorded`;
   const onCritical = serious.find((p) => p.asset_criticality === "CRITICAL");
   const type = onCritical ? assetOf(onCritical.asset_id)?.asset_type : undefined;
   if (onCritical && type) s += `, including one on a critical ${type.toLowerCase()}`;

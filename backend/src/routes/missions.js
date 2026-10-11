@@ -28,6 +28,9 @@ router.get("/", async (req, res) => {
                 COALESCE(p.hidden_problems, 0)::int
                     AS hidden_problems,
 
+                COALESCE(p.awaiting_review, 0)::int
+                    AS awaiting_review,
+
                 EXISTS (
                     SELECT 1
                     FROM replay_events r
@@ -55,7 +58,13 @@ router.get("/", async (req, res) => {
 
                     COUNT(*) FILTER (
                         WHERE hidden_in_completed = TRUE
-                    ) AS hidden_problems
+                    ) AS hidden_problems,
+
+                    -- Flagged for review with no saved operator decision yet.
+                    COUNT(*) FILTER (
+                        WHERE operator_review_required = TRUE
+                          AND decision IS NULL
+                    ) AS awaiting_review
 
                 FROM problems
                 GROUP BY mission_id
@@ -116,6 +125,14 @@ router.get("/:id", async (req, res) => {
                     WHERE p.mission_id = m.mission_id
                       AND p.hidden_in_completed = TRUE
                 ) AS hidden_problems,
+
+                (
+                    SELECT COUNT(*)::int
+                    FROM problems p
+                    WHERE p.mission_id = m.mission_id
+                      AND p.operator_review_required = TRUE
+                      AND p.decision IS NULL
+                ) AS awaiting_review,
 
                 EXISTS (
                     SELECT 1

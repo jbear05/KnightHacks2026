@@ -20,8 +20,8 @@ export function InsightsMap({ insights }: { insights: Insights }) {
         callout={
           hot && {
             location_id: hot.location_id,
-            title: `Hotspot · ${hot.location_name}`,
-            detail: `${hot.problems} problems · ${hot.okPct}% steps ok`,
+            title: `Most findings · ${hot.location_name}`,
+            detail: `${hot.problems} findings · ${hot.okPct}% of steps ok`,
           }
         }
         className="w-full overflow-hidden rounded-[12px] border-2 border-line-strong"

@@ -1,7 +1,6 @@
 // Fetch helpers. Components call these and never read CSVs or hit fetch directly,
 // so switching from fixtures to the real backend is one flag: NEXT_PUBLIC_USE_MOCK.
 import insightsMock from "./mock/insights.json";
-import missionM014 from "./mock/mission-M014.json";
 import missionsMock from "./mock/missions.json";
 import type { ApiError, AssetDetail, Decision, Insights, MissionDetail, MissionSummary, Problem } from "./types";
 
@@ -22,10 +21,6 @@ export function apiUrl(path: string): string {
     : `http://localhost:${process.env.PORT ?? 3000}`;
   return `${origin}${path}`;
 }
-
-const MOCK_MISSIONS: Record<string, MissionDetail> = {
-  M014: missionM014 as MissionDetail,
-};
 
 export class ApiRequestError extends Error {
   constructor(message: string, readonly status: number) {
@@ -48,7 +43,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 /** GET /api/missions/:id. Returns null for an unknown mission. */
 export async function getMission(id: string): Promise<MissionDetail | null> {
-  if (USE_MOCK) return MOCK_MISSIONS[id] ?? null;
+  if (USE_MOCK) {
+    // All 27 missions (lib/mock/build_missions.py), loaded on demand to keep them out of the client bundle.
+    const { default: missions } = await import("./mock/missions-detail.json");
+    const byId = missions as unknown as Record<string, MissionDetail>;
+    return Object.hasOwn(byId, id) ? byId[id] : null;
+  }
   try {
     return await request<MissionDetail>(`/api/missions/${encodeURIComponent(id)}`);
   } catch (e) {
@@ -73,7 +73,10 @@ export async function getAsset(id: string): Promise<AssetDetail | null> {
   }
 }
 
-/** POST /api/problems/:id/decision. Mock mode echoes the change back after a short delay. */
+/**
+ * POST /api/problems/:id/decision. Mock mode has no database: it echoes the change back after a short
+ * delay, so the choice lasts only until the page reloads (the UI says so; see SAVED_NOTE).
+ */
 export async function setDecision(problem: Problem, decision: Decision): Promise<Problem> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 150));

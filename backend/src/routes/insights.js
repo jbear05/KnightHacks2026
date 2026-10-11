@@ -197,8 +197,23 @@ router.get("/", async (req, res) => {
             .filter(asset => asset.problems > 1)
             .sort((a, b) => b.problems - a.problems);
 
+        // 7. V1 vs V2 within each inspection type, so the configuration
+        // comparison can be read with the inspection mix held fixed.
+        const byConfigType = actionTypes.map(type => ({
+            action_type: type,
+            V1: rateStat(
+                actions.filter(a => a.action_type === type && a.configuration_version === "V1"),
+                a => a.status === "SUCCESS"
+            ),
+            V2: rateStat(
+                actions.filter(a => a.action_type === type && a.configuration_version === "V2"),
+                a => a.status === "SUCCESS"
+            )
+        }));
+
         res.json({
             compare,
+            byConfigType,
             byLocation,
             batteryBuckets,
             byActionType,

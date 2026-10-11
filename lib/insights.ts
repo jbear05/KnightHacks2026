@@ -6,8 +6,12 @@ import type { ActionType, FailureType, Insights, MissionSummary, RateStat } from
 
 /** Below this share of successful steps a bar is drawn as blight (lime) instead of leaf. */
 export const WEAK_PCT = 80;
-/** Battery level SPOT should dock before reaching. */
+/** Suggested docking heuristic, from one small descriptive bucket; not a measured optimum. */
 export const DOCK_BELOW_PCT = 20;
+/** Groups with fewer steps than this are labelled "small sample". */
+export const SMALL_GROUP = 20;
+/** Stops need at least this many steps to be ranked by failure rate. */
+export const MIN_RANKED_STEPS = 10;
 
 /** Whole percent, the way every chart prints it. */
 export const pct = (r: RateStat) => Math.round(r.pct);
@@ -38,8 +42,12 @@ export interface Hero {
   runs: number;
   steps: number;
   completed: number;
+  /** Recorded HIGH/CRITICAL findings inside completed missions (historical, never changes). */
   hidden: number;
   hiddenRuns: number;
+  /** All recorded HIGH/CRITICAL findings, and those with no saved operator decision yet. */
+  serious: number;
+  awaiting: number;
   dateRange: string;
 }
 
@@ -71,6 +79,8 @@ export function hero(insights: Insights, missions: MissionSummary[]): Hero {
     completed: missions.filter((m) => m.mission_status === "COMPLETED").length,
     hidden: missions.reduce((n, m) => n + m.hidden_problems, 0),
     hiddenRuns: missions.filter((m) => m.hidden_problems > 0).length,
+    serious: missions.reduce((n, m) => n + m.serious_problems, 0),
+    awaiting: missions.reduce((n, m) => n + (m.awaiting_review ?? m.serious_problems), 0),
     dateRange: dateRange(missions),
   };
 }
@@ -79,20 +89,54 @@ export function heroLead(h: Hero): string {
   const done = `${h.completed} of ${h.runs} missions finished as completed`;
   const tail = "Compare locations, battery levels and inspection types below.";
   if (h.hidden === 0) return `${done}, and none of them hid a high or critical finding. ${tail}`;
-  const findings = h.hidden === 1 ? "1 high or critical finding" : `${h.hidden} high or critical findings`;
+  const findings = h.hidden === 1 ? "1 high or critical finding was" : `${h.hidden} high or critical findings were`;
   const runs = h.hiddenRuns === 1 ? "1 of those runs" : `${h.hiddenRuns} of those runs`;
-  return `${done}, but ${findings} across ${runs} still ${h.hidden === 1 ? "needs" : "need"} attention. ${tail}`;
+  const review =
+    h.awaiting === 0
+      ? `Every serious finding has a saved operator decision, which records a choice, not a confirmed fix.`
+      : `${h.awaiting} of ${h.serious} serious findings across all missions have no saved operator decision yet.`;
+  return `${done}, but ${findings} recorded in ${runs}. ${review} ${tail}`;
 }
 
 // ---------- V1 vs V2 ----------
 
+const ofSteps = (r: RateStat) => `${r.succeeded} of ${r.total}`;
+
 export function compareSoWhat(i: Insights): string {
   if (i.soWhat.compare) return i.soWhat.compare;
-  const v1 = pct(i.compare.V1.actions);
-  const v2 = pct(i.compare.V2.actions);
-  if (v2 === v1) return `V1 and V2 recorded the same step success: ${v2}%. Configuration is not what separates good runs.`;
-  const better = v2 > v1 ? "V2" : "V1";
-  return `${better} recorded higher success: ${Math.max(v1, v2)}% versus ${Math.min(v1, v2)}%. Compare similar routes before changing configuration.`;
+  const { V1, V2 } = i.compare;
+  const v1 = pct(V1.actions);
+  const v2 = pct(V2.actions);
+  const caveat = "This is an observed association: the runs differ in route, timing and battery, so it does not show the configuration caused the difference.";
+  if (v2 === v1) return `V1 and V2 recorded the same step success: ${v2}% (${ofSteps(V1.actions)} and ${ofSteps(V2.actions)} steps). ${caveat}`;
+  const [hi, lo] = v2 > v1 ? (["V2", "V1"] as const) : (["V1", "V2"] as const);
+  const rows = configTypeRows(i).filter((r) => r.diff !== null);
+  const higher = rows.filter((r) => (hi === "V2" ? r.diff! > 0 : r.diff! < 0)).length;
+  const within = rows.length ? ` ${hi} was also higher within ${higher} of ${rows.length} inspection types.` : "";
+  return `${hi} recorded higher step success: ${pct(i.compare[hi].actions)}% (${ofSteps(i.compare[hi].actions)}) versus ${pct(i.compare[lo].actions)}% (${ofSteps(i.compare[lo].actions)}) on ${lo}.${within} ${caveat}`;
+}
+
+export interface ConfigTypeRow {
+  action_type: ActionType;
+  label: string;
+  V1: RateStat;
+  V2: RateStat;
+  /** V2 minus V1 in percentage points, one decimal; null when either side has no steps. */
+  diff: number | null;
+  /** Either side has fewer than SMALL_GROUP steps. */
+  small: boolean;
+}
+
+/** V1 vs V2 within each inspection type, with denominators. Empty when the API sends no breakdown. */
+export function configTypeRows(i: Insights): ConfigTypeRow[] {
+  return (i.byConfigType ?? []).map((r) => ({
+    action_type: r.action_type,
+    label: ACTION_LABEL[r.action_type],
+    V1: r.V1,
+    V2: r.V2,
+    diff: r.V1.total && r.V2.total ? Math.round((r.V2.pct - r.V1.pct) * 10) / 10 : null,
+    small: Math.min(r.V1.total, r.V2.total) < SMALL_GROUP,
+  }));
 }
 
 // ---------- Heatmap ----------
@@ -122,25 +166,42 @@ export function failShare(okPct: number): string {
   return `1 in ${Math.max(1, Math.round(100 / fail))} steps fail there`;
 }
 
+/** Stops ranked by step failure rate, among stops with at least MIN_RANKED_STEPS steps. */
+export function byFailureRate(i: Insights): LocationRow[] {
+  return [...i.byLocation]
+    .filter((l) => l.actions.total >= MIN_RANKED_STEPS)
+    .sort((a, b) => a.actions.pct - b.actions.pct || b.actions.total - a.actions.total);
+}
+
 export function heatmapSoWhat(i: Insights): string {
   if (i.soWhat.byLocation) return i.soWhat.byLocation;
   const h = hotspot(i);
   if (!h) return "No stop recorded a finding across these runs.";
-  return `${h.location_name} (${h.location_id}) is the hotspot: ${h.problems} problems and ${failShare(h.okPct)}, so walk it first when a tech goes out.`;
+  const top = i.byLocation.find((l) => l.location_id === h.location_id)!;
+  let s = `${h.location_name} (${h.location_id}) recorded the most findings: ${h.problems} across ${top.actions.total} steps.`;
+  const worst = byFailureRate(i)[0];
+  if (worst && worst.location_id !== h.location_id) {
+    s += ` ${worst.location_name} (${worst.location_id}) has the lowest step success: ${ofSteps(worst.actions)} ok (${pct(worst.actions)}%).`;
+  }
+  return `${s} Counts and failure rates rank stops differently, and neither weighs severity.`;
 }
 
-/** "Next worst: Turbine Hall South (WP09), 6 problems and 64% of steps ok. Inspection Dock (WP15), 69% of steps ok." */
-export function nextWorst(i: Insights): string | null {
-  const ranked = byProblems(i.byLocation);
-  const second = ranked[1];
-  if (!second || second.problems === 0) return null;
-  let s = `Next worst: ${second.location_name} (${second.location_id}), ${second.problems} problems and ${pct(second.actions)}% of steps ok.`;
-  const shown = new Set([ranked[0].location_id, second.location_id]);
-  const weakest = [...i.byLocation]
-    .filter((l) => !shown.has(l.location_id) && l.actions.total > 0)
-    .sort((a, b) => a.actions.pct - b.actions.pct)[0];
-  if (weakest) s += ` ${weakest.location_name} (${weakest.location_id}), ${pct(weakest.actions)}% of steps ok.`;
-  return s;
+export interface LocationRankings {
+  byFindings: { location_id: string; location_name: string; problems: number; steps: number }[];
+  byFailure: { location_id: string; location_name: string; stat: RateStat; pct: number }[];
+}
+
+/** The stops with the most findings and those with the lowest step success, with denominators. */
+export function locationRankings(i: Insights, n = 3): LocationRankings {
+  return {
+    byFindings: byProblems(i.byLocation)
+      .filter((l) => l.problems > 0)
+      .slice(0, n)
+      .map((l) => ({ location_id: l.location_id, location_name: l.location_name, problems: l.problems, steps: l.actions.total })),
+    byFailure: byFailureRate(i)
+      .slice(0, n)
+      .map((l) => ({ location_id: l.location_id, location_name: l.location_name, stat: l.actions, pct: pct(l.actions) })),
+  };
 }
 
 // ---------- Battery ----------
@@ -170,10 +231,19 @@ export function batteryBars(i: Insights): BatteryBar[] {
 
 export function batterySoWhat(i: Insights): string {
   if (i.soWhat.battery) return i.soWhat.battery;
-  const low = i.batteryBuckets.find((b) => b.max < DOCK_BELOW_PCT);
-  if (!low || low.actions.total === 0) return `No steps ran below ${DOCK_BELOW_PCT}% battery.`;
-  const { succeeded, total } = low.actions;
-  return `Only ${succeeded} of ${total} steps succeeded below ${DOCK_BELOW_PCT}% battery. Plan to dock before reaching ${DOCK_BELOW_PCT}%.`;
+  const sum = (low: boolean) => {
+    const bs = i.batteryBuckets.filter((b) => (b.max < DOCK_BELOW_PCT) === low);
+    const total = bs.reduce((n, b) => n + b.actions.total, 0);
+    const succeeded = bs.reduce((n, b) => n + b.actions.succeeded, 0);
+    return { total, succeeded, pct: total ? Math.round((succeeded / total) * 1000) / 10 : 0 };
+  };
+  const lo = sum(true);
+  const hi = sum(false);
+  if (lo.total === 0) return `No steps ran below ${DOCK_BELOW_PCT}% battery, so the data cannot say how low battery affects success.`;
+  return (
+    `Below ${DOCK_BELOW_PCT}% battery, ${ofSteps(lo)} steps succeeded (${pct(lo)}%), versus ${ofSteps(hi)} (${pct(hi)}%) at ${DOCK_BELOW_PCT}% or above. ` +
+    `Only ${lo.total} ${lo.total === 1 ? "step" : "steps"} ran that low, so the rate is uncertain and can reflect other factors such as position in the mission or configuration. Docking before ${DOCK_BELOW_PCT}% is a suggested heuristic, not a measured threshold.`
+  );
 }
 
 // ---------- Reliability by inspection type ----------
@@ -248,6 +318,16 @@ export function causesSoWhat(i: Insights): string {
     ? " Verify readings before diagnosing equipment."
     : "";
   return `${names.join(" and ")} ${verb} for ${n} of ${total} failed steps.${fix}`;
+}
+
+// ---------- Repeat assets ----------
+
+export function repeatSoWhat(i: Insights): string {
+  if (i.soWhat.repeatAssets) return i.soWhat.repeatAssets;
+  const [top] = i.repeatAssets;
+  if (!top) return "No asset recorded more than one finding.";
+  const n = i.repeatAssets.length;
+  return `${top.asset_id} (${top.asset_name}) recorded ${top.problems} findings, the most of any asset, and ${n} ${n === 1 ? "asset" : "assets"} recorded more than one. Open an asset's history to see whether its findings share a cause or a questionable sensor.`;
 }
 
 /** Tooltip / screen-reader text per stop on the heatmap. */

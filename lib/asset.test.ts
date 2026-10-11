@@ -4,6 +4,7 @@ import {
   axisFor,
   dayRange,
   factsOf,
+  failedSteps,
   findingsLine,
   labelSide,
   laneRows,
@@ -64,6 +65,18 @@ describe("Asset Detail numbers for PANEL-212 (Figma frame 8:455)", () => {
       "logged away from its home stop",
       "logged away from its home stop",
     ]);
+  });
+
+  it("lists failed steps, separating no-reading failures, walk failures and away-from-home steps", () => {
+    const rows = failedSteps(panel)!.map((f) => [f.action.action_id, f.action.location_id, f.walk, f.away, f.reading?.reading_id ?? null]);
+    expect(rows).toEqual([
+      ["A0089", "WP09", false, false, expect.any(String)],
+      ["A0109", "WP08", false, true, expect.any(String)],
+      ["A0132", "WP09", false, false, null], // M014 gauge step timed out with no reading
+      ["A0160", "WP09", false, false, expect.any(String)],
+      ["A0169", "WP09", true, false, null], // M017 walk lost communication: robot, not equipment
+    ]);
+    expect(failedSteps({ ...panel, actions: undefined })).toBeNull();
   });
 
   it("still works without the optional actions list", () => {

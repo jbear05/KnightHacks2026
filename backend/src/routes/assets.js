@@ -62,11 +62,36 @@ router.get("/:id", async (req, res) => {
             [id]
         );
 
+        // Every step SPOT ran on this asset, wherever SPOT stood, in the same
+        // shape as lib/mock/assets.json. Lets the page explain a failed step
+        // that left no reading and count inspection visits.
+        const actionsResult = await pool.query(
+            `
+            SELECT
+                action_id,
+                mission_id,
+                sequence,
+                timestamp,
+                location_id,
+                asset_id,
+                action_type,
+                battery_pct,
+                status,
+                failure_type,
+                duration_sec
+            FROM actions
+            WHERE asset_id = $1
+            ORDER BY timestamp ASC, action_id ASC
+            `,
+            [id]
+        );
+
         res.json({
             ...assetResult.rows[0],
             readings: readingsResult.rows,
             problems: problemsResult.rows,
-            normal_bands: []
+            normal_bands: [],
+            actions: actionsResult.rows
         });
 
     } catch (error) {

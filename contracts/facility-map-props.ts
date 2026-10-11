@@ -125,15 +125,14 @@ export interface FacilityMapLiveProps extends FacilityMapBase {
    *  failure, problems all come from `events`); it only gives the route ahead. */
   plan?: Action[];
 
-  /** Playback speed so the A* walk animation lasts about as long as the gap
-   *  to the next event (1 / 10 / 60).
-   *  Map & Sim: between events the map advances its own mission clock from
-   *  the latest event's timestamp at `speed`, so SPOT moves smoothly and never
-   *  runs past the next planned action. No per-frame prop updates needed. */
-  speed: 1 | 10 | 60;
-
-  /** false = freeze SPOT mid-walk (legs stop, position holds). */
-  playing: boolean;
+  /** useReplay()'s mission clock (plant-local ms, see lib/replay msOf). The map
+   *  places SPOT from this exact clock and keeps no clock of its own, so a
+   *  paused or seeked map always agrees with the status panel. Pause = the
+   *  clock stops changing, so SPOT freezes mid-walk. Optional only for older
+   *  callers: without it SPOT sits at the latest event. (Replaced the earlier
+   *  `speed` + `playing` props, with which the map ran an independent clock
+   *  that lost seeks between events.) */
+  clock?: number;
 
   /** Stops with an open HIGH/CRITICAL problem in this mission get a warning
    *  badge on the pin. Frontend computes this from Problem[]. */
@@ -217,7 +216,7 @@ export interface ReplayControlsProps {
 //   const replay = useReplay("M014", 60);
 //   const { data: mission } = useMission("M014");          // GET /api/missions/M014
 //   <FacilityMap mode="live" events={replay.events} plan={mission?.actions}
-//     speed={replay.speed} playing={replay.playing}
+//     clock={replay.clock}
 //     alertLocationIds={["WP06"]} onSelectLocation={openStop}
 //     onSpotStatus={setCurrentAction} />
 //   <ReplayControls playing={replay.playing} speed={replay.speed}

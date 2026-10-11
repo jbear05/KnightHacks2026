@@ -154,6 +154,7 @@ export interface MissionSummary {
   failed_actions: number;       // count of actions with status FAILED
   serious_problems: number;     // count of HIGH/CRITICAL problems
   hidden_problems: number;      // count of problems with hidden_in_completed (drives the warning tag)
+  awaiting_review: number;      // problems with operator_review_required and no saved decision (decision IS NULL)
   in_replay: boolean;           // false for M024–M027 (no live replay available)
 }
 
@@ -217,6 +218,8 @@ export interface Insights {
     missions: RateStat;         // succeeded = COMPLETED. V1 94.4, V2 100
     actions: RateStat;          // succeeded = SUCCESS.   V1 77.2, V2 91.1
   }>;
+  /** V1 vs V2 step success within each inspection type (same mix on both sides of the comparison). */
+  byConfigType?: Array<{ action_type: ActionType } & Record<ConfigVersion, RateStat>>;
   byLocation: Array<{ location_id: string; location_name: string; actions: RateStat; problems: number; nav_failure_pct: number | null }>;
   batteryBuckets: Array<{ label: string; min: number; max: number; actions: RateStat }>; // e.g. "<20%", "20-40%", ...
   byActionType: Array<{ action_type: ActionType; actions: RateStat }>;
