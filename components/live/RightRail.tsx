@@ -2,6 +2,7 @@
 // attention queue and event feed. Design & Frontend owns this; see contracts/live-mission-right-rail.md.
 import Image from "next/image";
 import Link from "next/link";
+import { FlaskConical } from "lucide-react";
 import { SeverityBadge } from "@/components/ui/SeverityBadge";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ACTION_LABEL, ANOMALY_LABEL, assetOf, criticalityPhrase, FAILURE_LABEL, locationLabel, timeOf } from "@/lib/format";
@@ -34,13 +35,16 @@ function NowCard({ live, total, clock, start }: { live: LiveState; total: number
   const s = live.current;
   const a = s?.action;
   const asset = a ? assetOf(a.asset_id) : null;
-  const title = a ? ACTION_LABEL[a.action_type] : live.ended ? "Mission finished" : "Waiting to start";
+  const skipping = s?.phase === "skipping";
+  const title = skipping ? "Step skipped" : a ? ACTION_LABEL[a.action_type] : live.ended ? "Mission finished" : "Waiting to start";
   const label = s ? `Now · step ${s.step} of ${total}` : live.ended ? `Done · ${total} of ${total} steps` : "Now";
-  const sub = a
-    ? `${locationLabel(a.location_id)}${asset ? ` · ${asset.asset_name}` : ""}`
-    : live.ended
-      ? `${live.succeeded} succeeded · ${live.failed} failed`
-      : "SPOT is at the Main Entrance (WP01)";
+  const sub = skipping && s && a
+    ? `Holding at ${locationLabel(s.fromLocationId)} · ${locationLabel(a.location_id)} is too hot`
+    : a
+      ? `${locationLabel(a.location_id)}${asset ? ` · ${asset.asset_name}` : ""}`
+      : live.ended
+        ? `${live.succeeded} succeeded · ${live.failed} failed`
+        : "SPOT is at the Main Entrance (WP01)";
   return (
     <section className="flex shrink-0 flex-col gap-1.5 border-b border-line px-5 py-3.5" aria-live="polite" aria-atomic="true">
       <p className="text-fg-subtle type-label">{label}</p>
@@ -48,10 +52,12 @@ function NowCard({ live, total, clock, start }: { live: LiveState; total: number
       <p className="text-fg-muted type-body">{sub}</p>
       {a && s && (
         <dl className="flex flex-wrap gap-x-5 gap-y-1 type-mono">
-          <div className="flex gap-1.5">
-            <dt className="text-fg-subtle">{s.phase === "walking" ? "Arrives" : "Started"}</dt>
-            <dd>{clockOf(s.arriveAt)}</dd>
-          </div>
+          {!skipping && (
+            <div className="flex gap-1.5">
+              <dt className="text-fg-subtle">{s.phase === "walking" ? "Arrives" : "Started"}</dt>
+              <dd>{clockOf(s.arriveAt)}</dd>
+            </div>
+          )}
           <div className="flex gap-1.5">
             <dt className="text-fg-subtle">Elapsed</dt>
             <dd>{durationOf(clock - start)}</dd>
@@ -112,7 +118,7 @@ function AttentionQueue({ items, missionId }: { items: QueueItem[]; missionId: s
         <ul className="-mx-5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-5">
           {items.map((it) => (
             <li key={it.key} className="flex h-[76px] shrink-0 flex-col gap-[3px] border-b border-line pt-[5px]">
-              {it.kind === "problem" ? <ProblemRow item={it} /> : <FailedRow item={it} missionId={missionId} />}
+              {it.kind === "problem" ? <ProblemRow item={it} /> : it.kind === "sim" ? <SimRow item={it} /> : <FailedRow item={it} missionId={missionId} />}
             </li>
           ))}
         </ul>
@@ -140,6 +146,28 @@ function ProblemRow({ item: { problem: p } }: { item: Extract<QueueItem, { kind:
         <p className="text-fg-muted type-mono">
           Priority {p.priority} · {timeOf(p.timestamp)}
         </p>
+      </div>
+    </>
+  );
+}
+
+/** A what-if alert from Map & Sim's scenarios; always tagged so nobody mistakes it for data. */
+function SimRow({ item }: { item: Extract<QueueItem, { kind: "sim" }> }) {
+  const critical = item.level === "critical";
+  return (
+    <>
+      <p className={`truncate type-body-strong ${critical ? "text-critical" : "text-high"}`}>{item.title}</p>
+      <p className="truncate text-fg-muted type-body-sm" title={item.detail}>
+        {item.detail}
+      </p>
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-flex shrink-0 items-center gap-1 rounded-badge border-[1.5px] border-line-strong px-2 py-1 type-badge ${critical ? "bg-failed-tint text-critical" : "bg-high-tint text-high"}`}
+        >
+          <FlaskConical aria-hidden size={16} />
+          What-if
+        </span>
+        <p className="text-fg-muted type-mono">{item.time}</p>
       </div>
     </>
   );
@@ -173,6 +201,7 @@ const FEED_GLYPH: Record<FeedRow["glyph"], string> = {
   blight: "/figma/glyph-blight.svg",
   problem: "/figma/icon-alert-triangle-high.svg",
   spot: "/figma/glyph-spot.svg",
+  sim: "",
 };
 
 function EventFeed({ rows }: { rows: FeedRow[] }) {
@@ -188,7 +217,11 @@ function EventFeed({ rows }: { rows: FeedRow[] }) {
         {rows.map((r) => (
           <li key={r.key} className="flex items-center gap-2 whitespace-nowrap">
             <span className="text-fg-subtle type-mono">{r.time}</span>
-            <Image src={FEED_GLYPH[r.glyph]} alt="" width={14} height={14} />
+            {r.glyph === "sim" ? (
+              <FlaskConical aria-label="What-if" size={14} strokeWidth={2.25} className="shrink-0 text-high" />
+            ) : (
+              <Image src={FEED_GLYPH[r.glyph]} alt="" width={14} height={14} />
+            )}
             <span className="type-body-sm">{r.text}</span>
             <span className="truncate text-fg-muted type-body-sm">{r.detail}</span>
           </li>

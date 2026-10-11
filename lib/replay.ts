@@ -89,7 +89,7 @@ export function playedCount(timeline: LiveEvent[], clock: number): number {
   return n;
 }
 
-export type Phase = "walking" | "inspecting";
+export type Phase = "walking" | "inspecting" | "skipping";
 
 export interface StepState {
   action: Action;
@@ -112,12 +112,14 @@ export interface StepResult {
 /** One row of the attention queue: a serious problem, or a failed step no problem already covers. */
 export type QueueItem =
   | { kind: "problem"; key: string; problem: Problem }
-  | { kind: "failed"; key: string; action: Action };
+  | { kind: "failed"; key: string; action: Action }
+  /** A what-if alert from Map & Sim's scenarios (heat wave, dock obstacle, component life). */
+  | { kind: "sim"; key: string; level: "warning" | "critical"; title: string; detail: string; time: string };
 
 export interface FeedRow {
   key: string;
   time: string;
-  glyph: "next" | "bloom" | "blight" | "problem" | "spot";
+  glyph: "next" | "bloom" | "blight" | "problem" | "spot" | "sim";
   text: string;
   detail: string;
 }
@@ -275,6 +277,7 @@ function buildFeed(m: MissionDetail, events: LiveEvent[], current: StepState | n
 /** "Step 6 of 10 · walking to Control Room Corridor (WP07) for a gauge reading" */
 export function stepSentence(s: StepState, total: number): string {
   const where = locationLabel(s.action.location_id);
+  if (s.phase === "skipping") return `Step ${s.step} of ${total} · skipping ${where}: too hot for SPOT`;
   const verb = s.phase === "walking" ? (s.progress > 0.8 ? "arriving at" : "walking to") : "at";
   return `Step ${s.step} of ${total} · ${verb} ${where} for ${withArticle(s.action.action_type)}`;
 }
