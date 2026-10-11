@@ -21,7 +21,7 @@ export function RightRail({ live, total, clock, start, missionId }: { live: Live
   return (
     <aside
       aria-label="Mission status"
-      className="flex flex-col overflow-hidden rounded-[6px] border-2 border-line-strong bg-surface shadow-[var(--shadow-sticker)] lg:h-full"
+      className="flex flex-col overflow-hidden rounded-[6px] border-2 border-line-strong bg-surface shadow-[var(--shadow-sticker)] lg:h-[676px]"
     >
       <NowCard live={live} total={total} clock={clock} start={start} />
       <Battery live={live} />

@@ -62,7 +62,7 @@ export function LiveMission({ mission, at, scenario: initial = NO_SCENARIO }: { 
     <div className="flex flex-col gap-6 px-4 pt-6 pb-6 md:px-6">
       <LiveTopBar mission={mission} live={live} status={replay.status} speed={replay.speed} />
 
-      <div className="grid gap-6 lg:h-[676px] lg:grid-cols-[minmax(0,1fr)_424px]">
+      <div className="grid gap-6 lg:min-h-[676px] lg:grid-cols-[minmax(0,1fr)_424px]">
         <section aria-labelledby="map-heading" className="sticker flex flex-col overflow-hidden bg-surface">
           <div className="flex flex-wrap items-start justify-between gap-3 px-[18px] pt-4">
             <div className="flex flex-col gap-0.5">
@@ -85,9 +85,37 @@ export function LiveMission({ mission, at, scenario: initial = NO_SCENARIO }: { 
                 </button>
               ))}
             </div>
+            <div role="group" aria-label="What-if scenarios" className="flex w-full min-h-7 flex-wrap items-center gap-x-4 gap-y-1 type-body-sm">
+              <span className="text-fg-muted type-label">What-if</span>
+              <label className="flex items-center gap-1.5">
+                <input type="checkbox" checked={heatOn} onChange={(e) => setHeatOn(e.target.checked)} className="size-4 accent-[var(--color-high)]" />
+                Heat wave
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={MAX_HEAT_C}
+                value={heatC}
+                disabled={!heatOn}
+                onChange={(e) => setHeatC(Number(e.target.value))}
+                aria-label="Heat wave strength"
+                aria-valuetext={`plus ${heatC} degrees Celsius`}
+                className="w-24 accent-[var(--color-high)] disabled:opacity-40"
+              />
+              <span className={`type-mono ${heatOn ? "" : "text-fg-subtle"}`}>+{heatC}°C</span>
+              <label className="flex items-center gap-1.5">
+                <input type="checkbox" checked={obstacle} onChange={(e) => setObstacle(e.target.checked)} className="size-4 accent-[var(--color-high)]" />
+                Obstacle at the dock
+              </label>
+              {sim.airC !== null && cur && (
+                <span className="text-fg-muted">
+                  Air at {cur.action.location_id} <span className={`type-mono ${sim.airC > 45 ? "text-critical" : sim.airC > 40 ? "text-high" : "text-fg"}`}>{sim.airC}°C</span>
+                </span>
+              )}
+            </div>
           </div>
 
-          <div className="-mx-[2px] mt-[33px]">
+          <div className="-mx-[2px] mt-4">
             <FacilityMap
               mode="live"
               events={replay.events}
@@ -116,34 +144,6 @@ export function LiveMission({ mission, at, scenario: initial = NO_SCENARIO }: { 
                 </li>
               ))}
             </ul>
-            <div role="group" aria-label="What-if scenarios" className="flex min-h-7 flex-wrap items-center gap-x-4 gap-y-1 type-body-sm">
-              <span className="text-fg-muted type-label">What-if</span>
-              <label className="flex items-center gap-1.5">
-                <input type="checkbox" checked={heatOn} onChange={(e) => setHeatOn(e.target.checked)} className="size-4 accent-[var(--color-high)]" />
-                Heat wave
-              </label>
-              <input
-                type="range"
-                min={1}
-                max={MAX_HEAT_C}
-                value={heatC}
-                disabled={!heatOn}
-                onChange={(e) => setHeatC(Number(e.target.value))}
-                aria-label="Heat wave strength"
-                aria-valuetext={`plus ${heatC} degrees Celsius`}
-                className="w-24 accent-[var(--color-high)] disabled:opacity-40"
-              />
-              <span className={`type-mono ${heatOn ? "" : "text-fg-subtle"}`}>+{heatC}°C</span>
-              <label className="flex items-center gap-1.5">
-                <input type="checkbox" checked={obstacle} onChange={(e) => setObstacle(e.target.checked)} className="size-4 accent-[var(--color-high)]" />
-                Obstacle at the dock
-              </label>
-              {sim.airC !== null && cur && (
-                <span className="text-fg-muted">
-                  Air at {cur.action.location_id} <span className={`type-mono ${sim.airC > 45 ? "text-critical" : sim.airC > 40 ? "text-high" : "text-fg"}`}>{sim.airC}°C</span>
-                </span>
-              )}
-            </div>
             <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 type-body-sm" aria-label="Map legend">
               <Legend src="/figma/step-success-sm.svg" label="Succeeded step" />
               <Legend src="/figma/step-failed-sm.svg" label="Failed step" />
