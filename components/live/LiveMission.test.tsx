@@ -77,17 +77,17 @@ describe("Live Mission skipped steps", () => {
   it("removes skipped findings from the rendered queue, feed and map legend", () => {
     const { container } = render(<LiveMission mission={m} at="02:26:00" scenario={{ heatC: 30, obstacle: false }} />);
     expect(screen.getByRole("list", { name: "Equipment findings so far" }).textContent).toBe("");
-    expect(screen.queryByText("PANEL-212 needs review")).toBeNull();
-    expect(screen.queryByText("HX-217 needs review")).toBeNull();
+    expect(screen.queryByText("PANEL-212 serious finding")).toBeNull();
+    expect(screen.queryByText("HX-217 serious finding")).toBeNull();
     expect(screen.queryByRole("link", { name: "Open PANEL-212" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Open HX-217" })).toBeNull();
-    expect(container.querySelectorAll('[aria-label*=", needs review"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[aria-label*=", serious finding recorded"]')).toHaveLength(0);
     fireEvent.click(screen.getByRole("checkbox", { name: "Heat wave" }));
-    expect(screen.getByText("PANEL-212 needs review")).toBeTruthy();
-    expect(screen.getByText("HX-217 needs review")).toBeTruthy();
+    expect(screen.getByText("PANEL-212 serious finding")).toBeTruthy();
+    expect(screen.getByText("HX-217 serious finding")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open PANEL-212" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open HX-217" })).toBeTruthy();
     expect(screen.getByRole("list", { name: "Equipment findings so far" }).textContent).toContain("PANEL-212");
-    expect(container.querySelectorAll('[aria-label*=", needs review"]')).toHaveLength(2);
+    expect(container.querySelectorAll('[aria-label*=", serious finding recorded"]')).toHaveLength(2);
   });
 });
