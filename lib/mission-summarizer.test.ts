@@ -27,9 +27,14 @@ describe("summarizeMission", () => {
   });
 
   it("accepts a summary using the selected mission's recorded values", async () => {
-    const text = "m014 completed under v1 with 3 failed actions. Battery ended at 22%.";
+    const text = "M014 completed under V1 with 3 failed actions. Battery ended at 22%.";
     generate.mockResolvedValue([{ summary_text: text }]);
     expect(await summarizeMission(mission)).toEqual({ text, source: "model" });
+  });
+
+  it("tidies lower-cased model output and drops a cut-off sentence", async () => {
+    generate.mockResolvedValue([{ summary_text: "m014 completed under v1 with 3 failed actions . battery ended at 22% and the" }]);
+    expect(await summarizeMission(mission)).toEqual({ text: "M014 completed under V1 with 3 failed actions.", source: "model" });
   });
 
   it("uses the supplied mission object rather than an imported fixture or old summary", async () => {

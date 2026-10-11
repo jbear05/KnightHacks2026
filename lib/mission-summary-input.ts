@@ -9,10 +9,17 @@ function readable(value: string): string {
   return value.toLowerCase().replace(/_/g, " ");
 }
 
+/**
+ * Model input, most important facts first: T5 summaries lean on the opening sentences, so the outcome,
+ * the failed steps and the most urgent findings lead, and battery and readings come last.
+ */
 export function buildMissionSummaryInput(mission: MissionDetail): string {
-  const failedActions = mission.actions.filter((action) => action.status === "FAILED");
+  const failedActions = [...mission.actions].sort((a, b) => a.sequence - b.sequence).filter((action) => action.status === "FAILED");
+  const failedSteps = failedActions.map((action) =>
+    `${ACTION_LABEL[action.action_type].toLowerCase()} at ${action.location_id}${action.failure_type ? ` (${FAILURE_LABEL[action.failure_type].toLowerCase()})` : ""}`,
+  );
   const reviewRequired = mission.problems.filter((problem) => problem.operator_review_required).length;
-  const problemExamples = mission.problems.slice(0, MAX_PROBLEM_EXAMPLES).map((problem) =>
+  const problemExamples = [...mission.problems].sort((a, b) => b.priority - a.priority).slice(0, MAX_PROBLEM_EXAMPLES).map((problem) =>
     `${problem.severity} ${readable(problem.anomaly_type)} at ${problem.location} on ${problem.asset_id}${problem.operator_review_required ? "; operator review required" : ""}`,
   );
   const questionableReadings = mission.readings.filter((reading) => reading.quality === "QUESTIONABLE");
@@ -20,7 +27,7 @@ export function buildMissionSummaryInput(mission: MissionDetail): string {
     `${readable(reading.measurement_type)} ${reading.value} ${reading.unit} on ${reading.asset_id}`,
   );
 
-  return `summarize: ${buildMissionFacts(mission, failedActions.length, reviewRequired, problemExamples, questionableReadings.length, readingExamples).join(" ")}`;
+  return `summarize: ${buildMissionFacts(mission, failedActions.length, failedSteps, reviewRequired, problemExamples, questionableReadings.length, readingExamples).join(" ")}`;
 }
 
 /**
@@ -72,6 +79,7 @@ export function buildMissionRecordSummary(mission: MissionDetail): string {
 function buildMissionFacts(
   mission: MissionDetail,
   failedActionCount: number,
+  failedSteps: string[],
   reviewRequired: number,
   problemExamples: string[],
   questionableReadingCount: number,
@@ -81,13 +89,14 @@ function buildMissionFacts(
     `Mission ${mission.mission_id} (${mission.mission_name}) ended ${readable(mission.mission_status)} under ${readable(mission.scenario)} configuration ${mission.configuration_version}.`,
     `It had ${mission.actions.length} actions, of which ${failedActionCount} failed.`,
   ];
+  if (failedSteps.length > 0) facts.push(`The failed steps were ${failedSteps.join("; ")}.`);
+
+  facts.push(`${mission.problems.length} problems were recorded; ${reviewRequired} require operator review.`);
+  if (problemExamples.length > 0) facts.push(`The most urgent findings are ${problemExamples.join("; ")}.`);
 
   if (mission.start_battery_pct !== null && mission.end_battery_pct !== null) {
     facts.push(`Battery changed from ${mission.start_battery_pct}% at start to ${mission.end_battery_pct}% at end.`);
   }
-
-  facts.push(`${mission.problems.length} problems were recorded; ${reviewRequired} require operator review.`);
-  if (problemExamples.length > 0) facts.push(`Recorded findings include ${problemExamples.join("; ")}.`);
 
   facts.push(`${questionableReadingCount} readings were marked questionable.`);
   if (readingExamples.length > 0) facts.push(`Examples include ${readingExamples.join("; ")}.`);
