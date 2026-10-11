@@ -160,18 +160,30 @@ export function scenarioFromParams(heat?: string, obstacle?: string): Scenario {
 /** Adds the simulated alerts to the rail: critical ones top the queue, warnings go after the data's items. */
 export function withScenario(live: LiveState, state: ScenarioState): LiveState {
   if (!state.alerts.length) return live;
-  // A skipped step never happened: its result, feed rows and failed-step item go.
+  // A skipped step never happened: remove its result, findings, queue items and feed rows.
   const sk = state.skipped;
   const kept = live.results.filter((r) => !sk.has(r.action.action_id));
-  const ofSkipped = (key: string) => [...sk].some((id) => key.startsWith(`${id}-`));
+  const skippedFindingKeys = new Set(live.problems.filter((p) => sk.has(p.action_id)).map((p) => `P${p.anomaly_id}`));
+  const ofSkipped = (key: string) => skippedFindingKeys.has(key) || [...sk].some((id) => key.startsWith(`${id}-`));
+  const current = live.current
+    ? {
+        ...live.current,
+        fromLocationId: kept[kept.length - 1]?.action.location_id ?? START_LOCATION,
+        ...(sk.has(live.current.action.action_id) ? { phase: "skipping" as const, progress: 0 } : {}),
+      }
+    : null;
   const items = state.alerts
     .filter((a) => a.level !== "info")
     .map((a): QueueItem => ({ kind: "sim", key: `sim-${a.id}`, level: a.level as "warning" | "critical", title: a.title, detail: a.detail, time: a.at }));
   const rows = state.alerts.map((a): FeedRow => ({ key: `sim-${a.id}`, time: a.at, glyph: "sim", text: a.title, detail: "· what-if" }));
-  const queue = live.queue.filter((q) => !(q.kind === "failed" && sk.has(q.action.action_id)));
+  const queue = live.queue.filter((q) =>
+    q.kind === "problem" ? !sk.has(q.problem.action_id) : q.kind !== "failed" || !sk.has(q.action.action_id),
+  );
   return {
     ...live,
     results: kept,
+    current,
+    problems: live.problems.filter((p) => !sk.has(p.action_id)),
     succeeded: kept.filter((r) => r.ok).length,
     failed: kept.filter((r) => !r.ok).length,
     queue: [...items.filter((i) => i.kind === "sim" && i.level === "critical"), ...queue, ...items.filter((i) => i.kind === "sim" && i.level === "warning")],

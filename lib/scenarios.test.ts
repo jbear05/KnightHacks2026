@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import mission from "@/lib/mock/mission-M014.json";
-import { deriveLive, msOf, timelineFromMission } from "@/lib/replay";
+import { deriveLive, msOf, playedCount, timelineFromMission } from "@/lib/replay";
 import { dockWalk, fromStop, scenarioFromParams, scenarioState, withScenario } from "@/lib/scenarios";
 import type { MissionDetail } from "@/lib/types";
 
@@ -50,5 +50,49 @@ describe("what-if scenarios on M014", () => {
     expect(scenarioFromParams("16", "1")).toEqual({ heatC: 16, obstacle: true });
     expect(scenarioFromParams("99", undefined)).toEqual({ heatC: 30, obstacle: false });
     expect(scenarioFromParams(undefined, "0")).toEqual({ heatC: 0, obstacle: false });
+  });
+});
+
+describe("skipped-step consistency", () => {
+  it("removes skipped inspections' findings from the map state, queue and feed without changing history", () => {
+    const base = deriveLive(m, timelineFromMission(m), msOf(m.end_time!));
+    const state = scenarioState("M014", { heatC: 30, obstacle: false }, all, null, true);
+    expect(state.skipped.has("A0132")).toBe(true);
+    expect(state.skipped.has("A0133")).toBe(true);
+    const skippedProblems = base.problems.filter((p) => state.skipped.has(p.action_id));
+    expect(skippedProblems.map((p) => p.anomaly_id).sort()).toEqual(["AN002", "AN035"]);
+    const live = withScenario(base, state);
+    expect(live.problems).toEqual(base.problems.filter((p) => !state.skipped.has(p.action_id)));
+    expect(live.queue.some((q) => q.kind === "problem" && state.skipped.has(q.problem.action_id))).toBe(false);
+    expect(live.queue.some((q) => q.kind === "failed" && state.skipped.has(q.action.action_id))).toBe(false);
+    expect(live.feed.some((r) => skippedProblems.some((p) => r.key === `P${p.anomaly_id}`))).toBe(false);
+    expect(base.problems).toHaveLength(2);
+    expect(m.problems).toHaveLength(2);
+  });
+
+  it.each(["02:19:00", "02:20:30"])("holds at the previous stop during a skipped step at %s", (time) => {
+    const timeline = timelineFromMission(m);
+    const clock = msOf(`2026-09-06T${time}`);
+    const base = deriveLive(m, timeline.slice(0, playedCount(timeline, clock)), clock);
+    const cur = base.current!;
+    const state = scenarioState("M014", { heatC: 16, obstacle: false }, new Set(base.results.map((r) => r.action.action_id)), { ...cur.action, progress: cur.progress, inspecting: cur.phase === "inspecting" }, false, time);
+    expect(state.skipped.has("A0138")).toBe(true);
+    expect(withScenario(base, state).current).toMatchObject({ phase: "skipping", fromLocationId: "WP01", progress: 0 });
+    expect(base.current?.phase).not.toBe("skipping");
+  });
+
+  it("starts the next walk from the last visited stop and restores history when heat is off", () => {
+    const timeline = timelineFromMission(m);
+    const clock = msOf("2026-09-06T02:21:00");
+    const base = deriveLive(m, timeline.slice(0, playedCount(timeline, clock)), clock);
+    const cur = base.current!;
+    const finished = new Set(base.results.map((r) => r.action.action_id));
+    const current = { ...cur.action, progress: cur.progress, inspecting: cur.phase === "inspecting" };
+    const heated = withScenario(base, scenarioState("M014", { heatC: 16, obstacle: false }, finished, current, false));
+    expect(heated.current).toMatchObject({ phase: "walking", fromLocationId: "WP01", action: { action_id: "A0139" } });
+    const normal = withScenario(base, scenarioState("M014", { heatC: 0, obstacle: false }, finished, current, false));
+    expect(normal.current).toEqual(base.current);
+    expect(normal.problems).toEqual(base.problems);
+    expect(normal.results).toEqual(base.results);
   });
 });

@@ -89,7 +89,7 @@ export function playedCount(timeline: LiveEvent[], clock: number): number {
   return n;
 }
 
-export type Phase = "walking" | "inspecting";
+export type Phase = "walking" | "inspecting" | "skipping";
 
 export interface StepState {
   action: Action;
@@ -277,6 +277,7 @@ function buildFeed(m: MissionDetail, events: LiveEvent[], current: StepState | n
 /** "Step 6 of 10 · walking to Control Room Corridor (WP07) for a gauge reading" */
 export function stepSentence(s: StepState, total: number): string {
   const where = locationLabel(s.action.location_id);
+  if (s.phase === "skipping") return `Step ${s.step} of ${total} · skipping ${where}: too hot for SPOT`;
   const verb = s.phase === "walking" ? (s.progress > 0.8 ? "arriving at" : "walking to") : "at";
   return `Step ${s.step} of ${total} · ${verb} ${where} for ${withArticle(s.action.action_type)}`;
 }

@@ -242,10 +242,11 @@ function LiveFacilityMap({
   const home = pinsXY[spot.to] ?? pinsXY[START_LOCATION];
   const spotXY: { x: number; y: number } = split.at ?? home;
   const prevFailed = spot.index > 0 && results.get(sorted[spot.index - 1]?.action_id) === false;
-  const spotMode: SpotMode = ended ? "idle" : spot.inspecting ? "inspect" : prevFailed && spot.progress < 0.12 ? "fail" : "walk";
+  const skipping = skipped.has(sorted[spot.index]?.action_id ?? "");
+  const spotMode: SpotMode = ended || skipping ? "idle" : spot.inspecting ? "inspect" : prevFailed && spot.progress < 0.12 ? "fail" : "walk";
 
   // Tell the page what SPOT is doing whenever it changes.
-  const mode: SpotStatus["mode"] = !events.length ? "idle" : ended ? "done" : spot.inspecting ? "inspecting" : "walking";
+  const mode: SpotStatus["mode"] = !events.length || skipping ? "idle" : ended ? "done" : spot.inspecting ? "inspecting" : "walking";
   const statusKey = `${mode}:${spot.to}`;
   const lastStatus = useRef("");
   useEffect(() => {

@@ -35,13 +35,16 @@ function NowCard({ live, total, clock, start }: { live: LiveState; total: number
   const s = live.current;
   const a = s?.action;
   const asset = a ? assetOf(a.asset_id) : null;
-  const title = a ? ACTION_LABEL[a.action_type] : live.ended ? "Mission finished" : "Waiting to start";
+  const skipping = s?.phase === "skipping";
+  const title = skipping ? "Step skipped" : a ? ACTION_LABEL[a.action_type] : live.ended ? "Mission finished" : "Waiting to start";
   const label = s ? `Now · step ${s.step} of ${total}` : live.ended ? `Done · ${total} of ${total} steps` : "Now";
-  const sub = a
-    ? `${locationLabel(a.location_id)}${asset ? ` · ${asset.asset_name}` : ""}`
-    : live.ended
-      ? `${live.succeeded} succeeded · ${live.failed} failed`
-      : "SPOT is at the Main Entrance (WP01)";
+  const sub = skipping && s && a
+    ? `Holding at ${locationLabel(s.fromLocationId)} · ${locationLabel(a.location_id)} is too hot`
+    : a
+      ? `${locationLabel(a.location_id)}${asset ? ` · ${asset.asset_name}` : ""}`
+      : live.ended
+        ? `${live.succeeded} succeeded · ${live.failed} failed`
+        : "SPOT is at the Main Entrance (WP01)";
   return (
     <section className="flex shrink-0 flex-col gap-1.5 border-b border-line px-5 py-3.5" aria-live="polite" aria-atomic="true">
       <p className="text-fg-subtle type-label">{label}</p>
@@ -49,10 +52,12 @@ function NowCard({ live, total, clock, start }: { live: LiveState; total: number
       <p className="text-fg-muted type-body">{sub}</p>
       {a && s && (
         <dl className="flex flex-wrap gap-x-5 gap-y-1 type-mono">
-          <div className="flex gap-1.5">
-            <dt className="text-fg-subtle">{s.phase === "walking" ? "Arrives" : "Started"}</dt>
-            <dd>{clockOf(s.arriveAt)}</dd>
-          </div>
+          {!skipping && (
+            <div className="flex gap-1.5">
+              <dt className="text-fg-subtle">{s.phase === "walking" ? "Arrives" : "Started"}</dt>
+              <dd>{clockOf(s.arriveAt)}</dd>
+            </div>
+          )}
           <div className="flex gap-1.5">
             <dt className="text-fg-subtle">Elapsed</dt>
             <dd>{durationOf(clock - start)}</dd>

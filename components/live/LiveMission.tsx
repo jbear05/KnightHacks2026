@@ -53,9 +53,7 @@ export function LiveMission({ mission, at, scenario: initial = NO_SCENARIO }: { 
   const alertLabels = Object.fromEntries([...serious].reverse().map((p) => [p.location_id, SEVERITY_LABEL[p.severity]]));
 
   const subtitle = live.current
-    ? sim.skipped.has(live.current.action.action_id)
-      ? `Step ${live.current.step} of ${plan.length} · skipping ${live.current.action.location_id}: too hot for SPOT`
-      : stepSentence(live.current, plan.length)
+    ? stepSentence(live.current, plan.length)
     : live.ended
       ? `Mission finished · ${live.succeeded} of ${plan.length} steps succeeded`
       : "SPOT is waiting at the Main Entrance (WP01)";
