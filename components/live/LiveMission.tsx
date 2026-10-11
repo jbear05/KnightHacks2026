@@ -235,7 +235,12 @@ export function LiveMission({
 
           {selected && (
             <div className="px-[18px]">
-              <ComponentCard stopId={selected} onClose={() => setSelected(null)} />
+              <ComponentCard
+                stopId={selected}
+                missionId={mission.mission_id}
+                finished={new Set(base.results.map((r) => r.action.action_id))}
+                onClose={() => setSelected(null)}
+              />
             </div>
           )}
 

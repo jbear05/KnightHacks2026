@@ -9,8 +9,19 @@ import { lifeLevel, stopComponents } from "@/lib/scenarios";
 const LIFE_TONE = { critical: "text-critical", warning: "text-high", ok: "text-fg" } as const;
 const barTone = (score: number) => (score < 40 ? "bg-critical" : score < 70 ? "bg-high" : "bg-success");
 
-export function ComponentCard({ stopId, onClose }: { stopId: string; onClose: () => void }) {
-  const at = stopComponents(stopId);
+/** `finished`: action ids of this mission that have played; health counts those and every earlier mission. */
+export function ComponentCard({
+  stopId,
+  missionId,
+  finished,
+  onClose,
+}: {
+  stopId: string;
+  missionId: string;
+  finished: ReadonlySet<string>;
+  onClose: () => void;
+}) {
+  const at = stopComponents(stopId, missionId, finished);
   if (!at) return null;
   return (
     <section aria-label={`Components at ${stopId}`} className="mt-3 flex flex-col gap-2 rounded-card border-[1.5px] border-line bg-raised/40 px-3 py-2.5">
@@ -21,8 +32,8 @@ export function ComponentCard({ stopId, onClose }: { stopId: string; onClose: ()
           </h2>
           <p className="text-fg-muted type-body-sm">
             {at.components.length
-              ? "Health is from all 27 missions; life left is simulated from an assumed design life and age."
-              : "No components are based at this stop."}
+              ? `Health is from every inspection up to now (missions before ${missionId} and this one so far); life left is simulated from an assumed design life and age.`
+              : "No components are based at this stop yet."}
           </p>
         </div>
         <button type="button" onClick={onClose} aria-label="Close components" className="shrink-0 text-fg-muted hover:text-fg">

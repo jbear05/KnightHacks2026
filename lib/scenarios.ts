@@ -90,8 +90,23 @@ const DOCK = STOPS[DOCK_ID];
 /** SPOT notices the obstacle this close, in floor-plan px (same as map-sim's sandbox). */
 const SEE_PX = 25;
 
-let healthCache: Map<string, ComponentHealth> | null = null;
-const health = () => (healthCache ??= componentHealth(DATA));
+const healthCache = new Map<string, Map<string, ComponentHealth>>();
+
+/**
+ * map-sim's component health from what SPOT has seen so far: every earlier mission plus the steps of
+ * this one that have played. Mission ids run in date order (M001 is the first).
+ */
+export function healthSoFar(missionId: string, finished: ReadonlySet<string>): Map<string, ComponentHealth> {
+  const key = `${missionId}|${[...finished].sort().join(",")}`;
+  let h = healthCache.get(key);
+  if (!h) {
+    const seen = (a: { mission_id: string; action_id: string }) => a.mission_id < missionId || (a.mission_id === missionId && finished.has(a.action_id));
+    h = componentHealth({ actions: DATA.actions.filter(seen), readings: DATA.readings.filter(seen) });
+    if (healthCache.size > 100) healthCache.clear();
+    healthCache.set(key, h);
+  }
+  return h;
+}
 
 const at = (s: Stop): Pt => ({ x: s.x, y: s.y, floor: s.floor });
 
@@ -103,12 +118,13 @@ export interface StopComponents {
   visiting: ComponentHealth[];
 }
 
-/** map-sim's component health at a stop, for the card that opens when a pin is clicked. */
-export function stopComponents(stopId: string): StopComponents | null {
+/** map-sim's component health at a stop as of this point in the replay, for the card that opens when a pin is clicked. */
+export function stopComponents(stopId: string, missionId: string, finished: ReadonlySet<string>): StopComponents | null {
   const stop = STOPS[stopId];
   if (!stop) return null;
-  const visiting = [...health().values()].filter((h) => h.stops[0] !== stopId && h.stops.includes(stopId));
-  return { stopName: stop.name, components: componentsAt(health(), stopId), visiting };
+  const health = healthSoFar(missionId, finished);
+  const visiting = [...health.values()].filter((h) => h.stops[0] !== stopId && h.stops.includes(stopId));
+  return { stopName: stop.name, components: componentsAt(health, stopId), visiting };
 }
 
 /** map-sim's alert bands for simulated life left. */
@@ -199,7 +215,8 @@ export function scenarioState(
   const skipReason = coldC > 0 ? "cold" : "hot";
   const empty: ScenarioState = { alerts: [], skipped: new Set(), skipReason, airC: null };
   if (!DOCK) return empty;
-  const run = new MissionRun(DATA, health(), STOPS, DOCK, missionId);
+  // Component life as SPOT knew it when this mission started (no peeking at later missions).
+  const run = new MissionRun(DATA, healthSoFar(missionId, new Set()), STOPS, DOCK, missionId);
   const skipped = new Set<string>();
   run.actions.forEach((act, i) => {
     const isCurrent = current?.action_id === act.action_id;
